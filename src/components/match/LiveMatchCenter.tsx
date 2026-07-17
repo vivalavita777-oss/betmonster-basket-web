@@ -3,16 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { apiGet, formatNum } from "@/lib/api";
+import { apiGet, formatNum, type RecommendationItem } from "@/lib/api";
 import {
   asNumber,
+  buildResultComparison,
+  effectiveMatchStatus,
+  heuristicBadges,
   isFinishedStatus,
-  isLiveStatus,
   normalizeLiveMarkets,
   normalizeLiveThreePm,
   signalKey,
 } from "@/lib/matchUtils";
-import type { LiveResponse, PostgameResponse, SignalResponse } from "@/lib/matchTypes";
+import type { LiveResponse, MatchDetailResponse, PostgameResponse, SignalResponse } from "@/lib/matchTypes";
 import { StatusPill } from "../StatusPill";
 
 const fetcher = <T,>(path: string) => apiGet<T>(path);
@@ -21,36 +23,32 @@ export function LiveMatchCenter({
   gameId,
   initialLive,
   initialSignals,
-  initialPostgame,
   initialStatus,
 }: {
   gameId: string;
   initialLive: LiveResponse;
   initialSignals: SignalResponse;
-  initialPostgame: PostgameResponse;
   initialStatus?: string | null;
 }) {
-  const [postgame, setPostgame] = useState(initialPostgame);
-  const [postgameRefreshed, setPostgameRefreshed] = useState(false);
   const initialPollingStatus = initialLive.status || initialStatus;
   const [livePollMs, setLivePollMs] = useState(pollInterval(initialPollingStatus));
 
   const liveState = useSWR<LiveResponse>(`/api/v1/public/basket/matches/${gameId}/live`, fetcher, {
     fallbackData: initialLive,
     refreshInterval: livePollMs,
-    refreshWhenHidden: true,
-    refreshWhenOffline: true,
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
     dedupingInterval: 0,
     revalidateOnFocus: true,
   });
   const live = liveState.data || initialLive;
-  const liveStatus = live.status || initialStatus;
-  const interval = pollInterval(liveStatus);
+  const status = effectiveMatchStatus(initialStatus, live.status);
+  const interval = pollInterval(status);
   const signalsState = useSWR<SignalResponse>(`/api/v1/public/basket/matches/${gameId}/signals`, fetcher, {
     fallbackData: initialSignals,
     refreshInterval: livePollMs,
-    refreshWhenHidden: true,
-    refreshWhenOffline: true,
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
     dedupingInterval: 0,
     revalidateOnFocus: true,
   });
@@ -62,17 +60,8 @@ export function LiveMatchCenter({
   const stale = sourceAgeSeconds != null && sourceAgeSeconds > Math.max(90, interval / 500);
 
   useEffect(() => {
-    setLivePollMs(pollInterval(liveStatus));
-  }, [liveStatus]);
-
-  useEffect(() => {
-    if (!postgameRefreshed && isFinishedStatus(live.status || initialStatus)) {
-      setPostgameRefreshed(true);
-      apiGet<PostgameResponse>(`/api/v1/public/basket/matches/${gameId}/postgame`)
-        .then(setPostgame)
-        .catch(() => undefined);
-    }
-  }, [gameId, initialStatus, live.status, postgameRefreshed]);
+    setLivePollMs(pollInterval(status));
+  }, [status]);
 
   return (
     <>
@@ -80,7 +69,7 @@ export function LiveMatchCenter({
         <div className="panelHeader">
           <h2>Live Center</h2>
           <div className="statusCluster">
-            <StatusPill label={isFinishedStatus(live.status || initialStatus) ? "POLLING STOPPED" : `${interval / 1000}s POLL`} tone="neutral" />
+            <StatusPill label={isFinishedStatus(status) ? "POLLING STOPPED" : `${interval / 1000}s POLL`} tone="neutral" />
             <StatusPill label={live.available ? "LIVE DATA" : "NO LIVE"} tone={live.available ? "red" : "neutral"} />
           </div>
         </div>
@@ -105,15 +94,144 @@ export function LiveMatchCenter({
       </section>
 
       <SignalsPanel signals={signals} error={Boolean(signalsState.error)} />
-      <PostgameTelemetry postgame={postgame} />
     </>
   );
 }
 
 function pollInterval(status?: string | null): number {
   if (isFinishedStatus(status)) return 0;
-  if (isLiveStatus(status)) return 10000;
+  if (["live", "inprogress", "in_progress", "playing", "q1", "q2", "q3", "q4", "halftime"].includes(String(status || "").toLowerCase())) return 10000;
   return 60000;
+}
+
+export function MatchHeroScore({
+  gameId,
+  match,
+  initialLive,
+}: {
+  gameId: string;
+  match: MatchDetailResponse;
+  initialLive: LiveResponse;
+}) {
+  const initialScore = match.score || { home: match.home_score, away: match.away_score };
+  const liveState = useSWR<LiveResponse>(`/api/v1/public/basket/matches/${gameId}/live`, fetcher, {
+    fallbackData: initialLive,
+    refreshInterval: pollInterval(effectiveMatchStatus(match.status, initialLive.status)),
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+    revalidateOnFocus: true,
+  });
+  const live = liveState.data || initialLive;
+  const status = effectiveMatchStatus(match.status, live.status);
+  const dbScoreMissing = initialScore.home == null && initialScore.away == null;
+  const useLiveScore = Boolean(live.available && live.score && (!isFinishedStatus(status) || dbScoreMissing));
+  const score = useLiveScore ? live.score : initialScore;
+  const label = isFinishedStatus(status) ? "FINISHED" : useLiveScore ? "LIVE" : (status || "scheduled").toUpperCase();
+
+  return (
+    <>
+      <div><span>{match.home_team || "Home"}</span><strong>{score?.home ?? "-"}</strong></div>
+      <div className="scoreDivider">:</div>
+      <div><span>{match.away_team || "Away"}</span><strong>{score?.away ?? "-"}</strong></div>
+      <StatusPill label={label} tone={useLiveScore ? "red" : "neutral"} />
+    </>
+  );
+}
+
+export function LiveResultComparison({
+  gameId,
+  initialLive,
+  initialStatus,
+  initialPostgame,
+  match,
+  frozenItems,
+  ledgerItems,
+}: {
+  gameId: string;
+  initialLive: LiveResponse;
+  initialStatus?: string | null;
+  initialPostgame: PostgameResponse;
+  match: MatchDetailResponse;
+  frozenItems: RecommendationItem[];
+  ledgerItems: RecommendationItem[];
+}) {
+  const [postgame, setPostgame] = useState(initialPostgame);
+  const [postgameRefreshed, setPostgameRefreshed] = useState(false);
+  const liveState = useSWR<LiveResponse>(`/api/v1/public/basket/matches/${gameId}/live`, fetcher, {
+    fallbackData: initialLive,
+    refreshInterval: pollInterval(effectiveMatchStatus(initialStatus, initialLive.status)),
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+    revalidateOnFocus: true,
+  });
+  const live = liveState.data || initialLive;
+  const status = effectiveMatchStatus(initialStatus, live.status);
+
+  useEffect(() => {
+    if (!postgameRefreshed && isFinishedStatus(status)) {
+      setPostgameRefreshed(true);
+      apiGet<PostgameResponse>(`/api/v1/public/basket/matches/${gameId}/postgame`)
+        .then(setPostgame)
+        .catch(() => undefined);
+    }
+  }, [gameId, postgameRefreshed, status]);
+
+  const rows = buildResultComparison(frozenItems, ledgerItems, postgame);
+  const badges = heuristicBadges(postgame);
+  return (
+    <section className="panel" id="result">
+      <div className="panelHeader">
+        <h2>Result comparison</h2>
+        <StatusPill label={postgame.available ? "FINAL" : "PENDING"} tone={postgame.available ? "green" : "neutral"} />
+      </div>
+      <div className="resultGrid">
+        <Metric label="Final score" value={`${postgame.final_score?.home ?? match.home_score ?? "-"} : ${postgame.final_score?.away ?? match.away_score ?? "-"}`} />
+        <Metric label="Final total" value={formatNum(postgame.final_score?.total, 0)} />
+        <Metric label="Signals P/L" value={`${formatNum(postgame.signals_summary?.profit_1u, 2)}u`} />
+        <Metric label="Rows" value={String(rows.length)} />
+      </div>
+      {postgame.best_bet_result ? (
+        <div className="emptyCard">
+          <div className="statusCluster">{badges.map((badge) => <StatusPill key={badge} label={badge} tone="purple" />)}</div>
+          <strong>{postgame.best_bet_result.market || "-"} · {postgame.best_bet_result.selection || "-"}</strong>
+          <small>{postgame.best_bet_result.result || "-"} · {formatNum(postgame.best_bet_result.profit_1u, 2)}u</small>
+        </div>
+      ) : null}
+      <div className="tableScroller comparisonScroller">
+        <table className="comparisonTable">
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Pick</th>
+              <th>Prematch line</th>
+              <th>Odds</th>
+              <th>Projection</th>
+              <th>Edge</th>
+              <th>Actual value</th>
+              <th>Result status</th>
+              <th>Profit 1u</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>{row.market || "-"}</td>
+                <td>{row.pick || "-"}</td>
+                <td>{formatNum(row.line, 1)}</td>
+                <td>{formatNum(row.odds, 2)}</td>
+                <td>{formatNum(row.projection, 1)}</td>
+                <td>{formatNum(row.edge, 1)}</td>
+                <td>{formatNum(row.actualValue, 1)}</td>
+                <td>{row.resultStatus || "-"}</td>
+                <td>{formatNum(row.profit1u, 2)}</td>
+              </tr>
+            ))}
+            {!rows.length ? <tr><td colSpan={9}>No result comparison rows yet.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 function LiveMarketCards({ live }: { live: LiveResponse }) {
@@ -153,7 +271,7 @@ function LiveThreePmCards({ live, sourceAgeSeconds }: { live: LiveResponse; sour
               <small>O {formatNum(item.odds_over, 2)} / U {formatNum(item.odds_under, 2)}</small>
             </>
           )}
-          <small>Updated {item.updated_at || live.updated_at || "-"} · age {item.source_age_seconds ?? sourceAgeSeconds ?? "-"}s</small>
+          <small>Updated {item.updated_at || live.updated_at || "-"} · age {item.source_age_sec ?? item.source_age_seconds ?? sourceAgeSeconds ?? "-"}s</small>
         </div>
       ))}
     </div>
@@ -182,10 +300,6 @@ function SignalsPanel({ signals, error }: { signals: SignalResponse; error: bool
       </div>
     </section>
   );
-}
-
-function PostgameTelemetry({ postgame }: { postgame: PostgameResponse }) {
-  return <span className="srOnly">Postgame refreshed: {postgame.available ? "yes" : "no"}</span>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

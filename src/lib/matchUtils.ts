@@ -44,6 +44,19 @@ function pickFromEdge(edge: number | null, over = "OVER", under = "UNDER"): stri
   return edge > 0 ? over : under;
 }
 
+export function calculateTotalEdge(projection: number | null, line: number | null): number | null {
+  return projection != null && line != null ? projection - line : null;
+}
+
+export function calculateTeamTotalEdge(projection: number | null, line: number | null): number | null {
+  return calculateTotalEdge(projection, line);
+}
+
+export function calculateSpreadEdge(projectedMargin: number | null, handicap: number | null, side: "home" | "away"): number | null {
+  if (projectedMargin == null || handicap == null) return null;
+  return side === "home" ? projectedMargin + handicap : -projectedMargin + handicap;
+}
+
 export function normalizePrematchMarkets(
   markets: ApiObject | null | undefined,
   models?: Record<string, ModelBlock | ApiObject | null> | null,
@@ -55,8 +68,9 @@ export function normalizePrematchMarkets(
   const itAway = marketBlock(source.it_away);
   const teamTotals = asObject(source.team_totals);
 
+  const projectedMargin = modelProjection(models, "spread");
   const rows = [
-    buildMarket("spread", "Spread", asNumber(spread.home ?? spread.line), null, null, modelProjection(models, "spread"), "HOME_COVER", "AWAY_COVER", spread.available, spread.unavailable_reason),
+    buildSpreadMarket("spread", "Spread", asNumber(spread.home ?? spread.line), null, null, projectedMargin, "home", spread.available, spread.unavailable_reason),
     buildMarket("total", "Total", asNumber(total.line), asNumber(total.odds_over), asNumber(total.odds_under), modelProjection(models, "total"), "OVER", "UNDER", total.available, total.unavailable_reason),
     buildMarket("it_home", "Home team total", asNumber(teamTotals.home ?? itHome.line), asNumber(itHome.odds_over), asNumber(itHome.odds_under), modelProjection(models, "it_home"), "OVER", "UNDER", itHome.available, itHome.unavailable_reason),
     buildMarket("it_away", "Away team total", asNumber(teamTotals.away ?? itAway.line), asNumber(itAway.odds_over), asNumber(itAway.odds_under), modelProjection(models, "it_away"), "OVER", "UNDER", itAway.available, itAway.unavailable_reason),
@@ -73,11 +87,14 @@ export function normalizeLiveMarkets(live: LiveResponse): NormalizedMarket[] {
   const homeTotal = marketBlock(asObject(teamTotals.home));
   const awayTotal = marketBlock(asObject(teamTotals.away));
   const spreadLine = asNumber(spread.line);
+  const liveMargin = asNumber(projection.home_total) !== null && asNumber(projection.away_total) !== null
+    ? (asNumber(projection.home_total) || 0) - (asNumber(projection.away_total) || 0)
+    : null;
 
   return [
     buildMarket("live_total", "Live total", asNumber(total.line), asNumber(total.over_odds ?? total.odds_over), asNumber(total.under_odds ?? total.odds_under), asNumber(projection.total), "OVER", "UNDER", total.available, total.unavailable_reason),
-    buildMarket("live_spread_home", "Live spread home", spreadLine, asNumber(spread.home_odds), asNumber(spread.away_odds), asNumber(projection.home_total) !== null && asNumber(projection.away_total) !== null ? (asNumber(projection.home_total) || 0) - (asNumber(projection.away_total) || 0) : null, "HOME_COVER", "AWAY_COVER", spread.available, spread.unavailable_reason),
-    buildMarket("live_spread_away", "Live spread away", asNumber(spread.away) ?? (spreadLine == null ? null : -spreadLine), asNumber(spread.away_odds), asNumber(spread.home_odds), null, null, null, spread.available, spread.unavailable_reason),
+    buildSpreadMarket("live_spread_home", "Live spread home", spreadLine, asNumber(spread.home_odds), asNumber(spread.away_odds), liveMargin, "home", spread.available, spread.unavailable_reason),
+    buildSpreadMarket("live_spread_away", "Live spread away", asNumber(spread.away) ?? (spreadLine == null ? null : -spreadLine), asNumber(spread.away_odds), asNumber(spread.home_odds), liveMargin, "away", spread.available, spread.unavailable_reason),
     buildMarket("live_it_home", "Live home total", asNumber(homeTotal.line), asNumber(homeTotal.over_odds), asNumber(homeTotal.under_odds), asNumber(projection.home_total), "OVER", "UNDER", homeTotal.available, homeTotal.unavailable_reason),
     buildMarket("live_it_away", "Live away total", asNumber(awayTotal.line), asNumber(awayTotal.over_odds), asNumber(awayTotal.under_odds), asNumber(projection.away_total), "OVER", "UNDER", awayTotal.available, awayTotal.unavailable_reason),
   ];
@@ -95,7 +112,8 @@ function buildMarket(
   available?: boolean | null,
   unavailableReason?: string | null,
 ): NormalizedMarket {
-  const edge = projection != null && line != null ? projection - line : null;
+  const edge = calculateTotalEdge(projection, line);
+  const missing = line == null && projection == null && overOdds == null && underOdds == null;
   return {
     key,
     label,
@@ -103,9 +121,35 @@ function buildMarket(
     overOdds,
     underOdds,
     projection,
-    edge,
-    pick: pickFromEdge(edge, overPick || "OVER", underPick || "UNDER"),
-    status: available === false ? unavailableReason || "unavailable" : "available",
+    edge: missing ? null : edge,
+    pick: missing ? null : pickFromEdge(edge, overPick || "OVER", underPick || "UNDER"),
+    status: missing ? "missing_data" : available === false ? unavailableReason || "unavailable" : "available",
+  };
+}
+
+function buildSpreadMarket(
+  key: string,
+  label: string,
+  line: number | null,
+  overOdds: number | null,
+  underOdds: number | null,
+  projectedMargin: number | null,
+  side: "home" | "away",
+  available?: boolean | null,
+  unavailableReason?: string | null,
+): NormalizedMarket {
+  const edge = calculateSpreadEdge(projectedMargin, line, side);
+  const missing = line == null && projectedMargin == null && overOdds == null && underOdds == null;
+  return {
+    key,
+    label,
+    line,
+    overOdds,
+    underOdds,
+    projection: projectedMargin,
+    edge: missing ? null : edge,
+    pick: missing ? null : pickFromEdge(edge, "HOME_COVER", "AWAY_COVER"),
+    status: missing ? "missing_data" : available === false ? unavailableReason || "unavailable" : "available",
   };
 }
 
@@ -157,18 +201,44 @@ export function shotMarketRows(markets: ApiObject | null | undefined): Array<{ l
   });
 }
 
+function normalizeLine(value: number | null | undefined): string {
+  return value == null ? "" : value.toFixed(2);
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return String(value || "").trim().toUpperCase();
+}
+
 export function comparisonKey(item: RecommendationItem): string {
-  return [item.game_id, item.market, item.pick, item.line].map((part) => String(part ?? "")).join("|");
+  if (item.recommendation_key) return item.recommendation_key;
+  return [normalizeText(item.market), normalizeText(item.pick), normalizeLine(item.line)].join("|");
 }
 
 export function buildResultComparison(
   frozenItems: RecommendationItem[],
   ledgerItems: RecommendationItem[],
+  postgame?: PostgameResponse,
 ): ResultComparisonRow[] {
   const ledger = new Map(ledgerItems.map((item) => [comparisonKey(item), item]));
+  const postgameResults = postgameResultMap(postgame);
   const merged = frozenItems.length ? frozenItems : ledgerItems;
+  if (!merged.length && postgameResults.size) {
+    return Array.from(postgameResults.entries()).map(([key, row]) => ({
+      key,
+      market: asString(row.market),
+      pick: asString(row.pick ?? row.selection),
+      line: asNumber(row.line),
+      odds: asNumber(row.odds),
+      projection: asNumber(row.projection ?? row.model_projection),
+      edge: asNumber(row.edge),
+      actualValue: asNumber(row.actual_value),
+      resultStatus: asString(row.result_status ?? row.result),
+      profit1u: asNumber(row.profit_1u),
+    }));
+  }
   return merged.map((item, index) => {
     const settled = ledger.get(comparisonKey(item)) || item;
+    const postgameSettled = postgameResults.get(comparisonKey(item)) || postgameResults.get(item.recommendation_key || "");
     return {
       key: comparisonKey(item) || `row-${index}`,
       market: item.market ?? null,
@@ -177,11 +247,35 @@ export function buildResultComparison(
       odds: item.odds ?? null,
       projection: item.model_projection ?? null,
       edge: item.edge ?? null,
-      actualValue: settled.actual_value ?? null,
-      resultStatus: settled.result_status ?? null,
-      profit1u: settled.profit_1u ?? null,
+      actualValue: asNumber(postgameSettled?.actual_value) ?? settled.actual_value ?? null,
+      resultStatus: asString(postgameSettled?.result_status ?? postgameSettled?.result) ?? settled.result_status ?? null,
+      profit1u: asNumber(postgameSettled?.profit_1u) ?? settled.profit_1u ?? null,
     };
   });
+}
+
+function postgameResultMap(postgame?: PostgameResponse): Map<string, ApiObject> {
+  const source = postgame?.market_results;
+  const rows: ApiObject[] = [];
+  if (Array.isArray(source)) {
+    rows.push(...source.map(asObject));
+  } else {
+    for (const [key, value] of Object.entries(asObject(source))) {
+      const item = asObject(value);
+      rows.push({ recommendation_key: key, ...item });
+    }
+  }
+  return new Map(rows.flatMap((row) => {
+    const market = asString(row.market);
+    const pick = asString(row.pick ?? row.selection);
+    const line = asNumber(row.line);
+    const recommendationKey = asString(row.recommendation_key);
+    const keys = [
+      recommendationKey,
+      (market || pick || line != null) ? [normalizeText(market), normalizeText(pick), normalizeLine(line)].join("|") : null,
+    ].filter(Boolean) as string[];
+    return keys.map((key) => [key, row] as [string, ApiObject]);
+  }));
 }
 
 export function heuristicBadges(postgame: PostgameResponse): string[] {
@@ -198,4 +292,10 @@ export function isLiveStatus(status?: string | null): boolean {
 
 export function isFinishedStatus(status?: string | null): boolean {
   return ["finished", "final", "closed"].includes(String(status || "").toLowerCase());
+}
+
+export function effectiveMatchStatus(initialStatus?: string | null, liveStatus?: string | null): string | null {
+  if (isFinishedStatus(initialStatus)) return "finished";
+  if (isFinishedStatus(liveStatus)) return "finished";
+  return liveStatus || initialStatus || null;
 }

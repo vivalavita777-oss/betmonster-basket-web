@@ -63,6 +63,8 @@ export type NormalizedMarket = {
   status: string;
 };
 
+export type MarketKind = "total" | "team_total" | "spread";
+
 export type PrematchResponse = {
   available?: boolean;
   public_status?: string | null;
@@ -101,6 +103,7 @@ export type LiveThreePmMarket = {
   odds_under?: number | null;
   updated_at?: string | null;
   source_age_seconds?: number | null;
+  source_age_sec?: number | null;
 };
 
 export type LiveResponse = {
@@ -156,7 +159,7 @@ export type PostgameResponse = {
     result?: string | null;
     profit_1u?: number | null;
   } | null;
-  market_results?: ApiObject | null;
+  market_results?: ApiObject | ApiObject[] | null;
   signals_summary?: { wins?: number; losses?: number; pushes?: number; profit_1u?: number } | null;
 };
 
@@ -177,6 +180,7 @@ export type FrozenPrematchResponse = {
   analytics?: ApiObject | null;
   data_quality?: ApiObject | null;
   line_snapshot?: ApiObject | null;
+  shot_markets?: ApiObject | null;
 };
 
 export type QuarterProfile = {

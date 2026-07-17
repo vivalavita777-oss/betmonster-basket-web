@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildResultComparison,
+  calculateSpreadEdge,
+  effectiveMatchStatus,
   getQuarterProfiles,
   heuristicBadges,
   normalizeLiveMarkets,
@@ -11,6 +13,13 @@ import {
 import type { FrozenPrematchResponse, LiveResponse, PrematchResponse } from "@/lib/matchTypes";
 
 describe("Phase C match utilities", () => {
+  it("uses canonical spread edge formula for positive and negative handicaps", () => {
+    expect(calculateSpreadEdge(7.1, -8.5, "home")).toBeCloseTo(-1.4);
+    expect(calculateSpreadEdge(7.1, 8.5, "away")).toBeCloseTo(1.4);
+    expect(calculateSpreadEdge(-3.2, 2.5, "home")).toBeCloseTo(-0.7);
+    expect(calculateSpreadEdge(-3.2, -2.5, "away")).toBeCloseTo(0.7);
+  });
+
   it("normalizes prematch markets with numeric team totals", () => {
     const rows = normalizePrematchMarkets(
       {
@@ -33,8 +42,15 @@ describe("Phase C match utilities", () => {
       live_projection: { home_total: 47, away_total: 39 },
     });
 
-    expect(rows.find((row) => row.key === "live_spread_away")).toMatchObject({ line: 4.5 });
+    expect(rows.find((row) => row.key === "live_spread_home")).toMatchObject({ line: -4.5, edge: 3.5, pick: "HOME_COVER" });
+    expect(rows.find((row) => row.key === "live_spread_away")).toMatchObject({ line: 4.5, edge: -3.5, pick: "AWAY_COVER" });
     expect(rows.find((row) => row.key === "live_it_home")).toMatchObject({ line: 43.5, projection: 47 });
+  });
+
+  it("keeps finished status effective when live returns not_live", () => {
+    expect(effectiveMatchStatus("finished", "not_live")).toBe("finished");
+    expect(effectiveMatchStatus("scheduled", "live")).toBe("live");
+    expect(effectiveMatchStatus("scheduled", null)).toBe("scheduled");
   });
 
   it("does not use legacy quarter shot data for quarter profiles", () => {
@@ -60,10 +76,37 @@ describe("Phase C match utilities", () => {
     expect(rows.find((row) => row.key === "total")?.item.reason).toBe("total_paused");
   });
 
+  it("preserves source_age_sec in live 3PM cards", () => {
+    const rows = normalizeLiveThreePm({
+      live_shot_markets: { three_pm: { total: { current: 5, line: 15.5, source_age_sec: 7 } } },
+    });
+
+    expect(rows.find((row) => row.key === "total")?.item.source_age_sec).toBe(7);
+  });
+
   it("matches result comparison rows with stable market/pick/line identifiers", () => {
     const rows = buildResultComparison(
       [{ game_id: "g1", market: "Total", pick: "OVER", line: 166.5, odds: 1.91, model_projection: 170, edge: 3.5 }],
       [{ game_id: "g1", market: "Total", pick: "OVER", line: 166.5, actual_value: 172, result_status: "WIN", profit_1u: 0.91 }],
+    );
+
+    expect(rows[0]).toMatchObject({ actualValue: 172, resultStatus: "WIN", profit1u: 0.91 });
+  });
+
+  it("matches frozen recommendation without game_id to settled ledger with game_id", () => {
+    const rows = buildResultComparison(
+      [{ market: " total ", pick: " over ", line: 166.504, odds: 1.91, model_projection: 170, edge: 3.5 }],
+      [{ game_id: "g1", market: "TOTAL", pick: "OVER", line: 166.5, actual_value: 172, result_status: "WIN", profit_1u: 0.91 }],
+    );
+
+    expect(rows[0]).toMatchObject({ actualValue: 172, resultStatus: "WIN", profit1u: 0.91 });
+  });
+
+  it("hydrates result comparison rows from postgame market results", () => {
+    const rows = buildResultComparison(
+      [{ market: "Total", pick: "OVER", line: 166.5 }],
+      [],
+      { available: true, market_results: [{ market: "Total", selection: "OVER", line: 166.5, actual_value: 172, result_status: "WIN", profit_1u: 0.91 }] },
     );
 
     expect(rows[0]).toMatchObject({ actualValue: 172, resultStatus: "WIN", profit1u: 0.91 });
@@ -76,9 +119,9 @@ describe("Phase C match utilities", () => {
     ]);
   });
 
-  it("keeps partial endpoint data renderable", () => {
+  it("marks missing market data as missing_data", () => {
     const rows = normalizePrematchMarkets(null, null);
     expect(rows).toHaveLength(4);
-    expect(rows.every((row) => row.status === "available")).toBe(true);
+    expect(rows.every((row) => row.status === "missing_data" && row.pick === null && row.edge === null)).toBe(true);
   });
 });

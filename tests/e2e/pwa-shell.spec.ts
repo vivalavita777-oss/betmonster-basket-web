@@ -29,6 +29,7 @@ test("match page renders full frozen snapshot", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Shot Markets" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Result comparison" })).toBeVisible();
   await expect(page.getByRole("row", { name: /IT Away UNDER 102\.5/ }).last()).toBeVisible();
+  await expect(page.getByText("POLLING STOPPED")).toBeVisible();
 });
 
 test("match page renders partial frozen fallback", async ({ page }) => {
@@ -53,12 +54,12 @@ test("match page keeps optional live endpoint failure isolated", async ({ page }
 test("match page updates live score and signals from client polling", async ({ page }) => {
   let liveCalls = 0;
   let signalCalls = 0;
-  await page.route("**/api/backend/api/v1/public/basket/matches/302600684/live", (route) => {
+  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/live", (route) => {
     liveCalls += 1;
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        game_id: "302600684",
+        game_id: "1022600187",
         available: true,
         status: "live",
         score: liveCalls > 1 ? { home: 12, away: 9 } : { home: 10, away: 9 },
@@ -69,19 +70,19 @@ test("match page updates live score and signals from client polling", async ({ p
           three_pm: {
             home: { current: liveCalls > 1 ? 3 : 2, line: 8.5, projection_final: 9.8, remaining_projection: 6.8, edge: 1.3, pick: "OVER", odds_over: 1.88, odds_under: 1.94 },
             away: { current: 1, line: 7.5, projection_final: 7.1, remaining_projection: 6.1, edge: -0.4, pick: "UNDER", odds_over: 1.9, odds_under: 1.9 },
-            total: { current: 4, line: 16.5, projection_final: 16.9, remaining_projection: 12.9, edge: 0.4, pick: "OVER", odds_over: 1.91, odds_under: 1.89 },
+            total: { current: 4, line: 16.5, projection_final: 16.9, remaining_projection: 12.9, edge: 0.4, pick: "OVER", odds_over: 1.91, odds_under: 1.89, source_age_sec: 7 },
           },
         },
         updated_at: new Date().toISOString(),
       }),
     });
   });
-  await page.route("**/api/backend/api/v1/public/basket/matches/302600684/signals", (route) => {
+  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/signals", (route) => {
     signalCalls += 1;
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
-        game_id: "302600684",
+        game_id: "1022600187",
         count: signalCalls > 1 ? 2 : 1,
         items: [
           { signal_no: "s1", market: "Total", selection: "OVER", line: 166.5, odds: 1.91, edge: 4.5, status: "PLAY", created_at: "2026-07-17T10:00:00Z" },
@@ -91,13 +92,58 @@ test("match page updates live score and signals from client polling", async ({ p
     });
   });
 
-  await page.goto("/match/302600684");
+  await page.goto("/match/1022600187");
   await expect(page.getByText("10 : 9")).toBeVisible();
   await expect(page.locator("#live-center").getByText("Home 3PM")).toBeVisible();
+  await expect(page.locator("#live-center").getByText(/age 7s/)).toBeVisible();
   await expect(page.getByText("1 SIGNALS")).toBeVisible();
   await page.waitForTimeout(10500);
   await expect(page.getByText("12 : 9")).toBeVisible();
   await expect(page.getByText("2 SIGNALS")).toBeVisible();
+});
+
+test("scheduled match transitions live to finished and updates result without reload", async ({ page }) => {
+  let liveCalls = 0;
+  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/live", (route) => {
+    liveCalls += 1;
+    const finished = liveCalls > 1;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        game_id: "1022600187",
+        available: true,
+        status: finished ? "finished" : "live",
+        score: finished ? { home: 12, away: 9 } : { home: 10, away: 9 },
+        clock: { period: finished ? "FINAL" : "Q1", timer: finished ? "00:00" : "06:12" },
+        live_market: { total: { line: 166.5, over_odds: 1.9, under_odds: 1.91 } },
+        live_projection: { total: 171, home_total: 88, away_total: 83 },
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  });
+  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/signals", (route) => route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({ game_id: "1022600187", count: 1, items: [{ signal_no: "sig-1", market: "Total", selection: "OVER", line: 166.5, odds: 1.91, edge: 4.5, status: "PLAY", created_at: "2026-07-18T02:05:00Z" }] }),
+  }));
+  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/postgame", (route) => route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify({
+      available: true,
+      final_score: { home: 12, away: 9, total: 21, margin: 3 },
+      market_results: [{ market: "Total", selection: "OVER", line: 166.5, actual_value: 172, result_status: "WIN", profit_1u: 0.91 }],
+      signals_summary: { wins: 1, losses: 0, pushes: 0, profit_1u: 0.91 },
+    }),
+  }));
+
+  await page.goto("/match/1022600187");
+  await expect(page.locator(".scoreBoard strong").first()).toHaveText("10");
+  await expect(page.locator("#live-center").getByText("10 : 9")).toBeVisible();
+  await page.waitForTimeout(10500);
+  await expect(page.getByText("POLLING STOPPED")).toBeVisible();
+  await expect(page.locator(".scoreBoard strong").first()).toHaveText("12");
+  await expect(page.locator("#live-center").getByText("12 : 9")).toBeVisible();
+  await expect(page.locator("#result").getByText("FINAL", { exact: true })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Total OVER 166\.5 .* 172\.0 WIN 0\.91/ })).toBeVisible();
 });
 
 for (const viewport of [

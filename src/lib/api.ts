@@ -22,6 +22,7 @@ export type MatchItem = {
 export type MatchListResponse = { date: string; league?: string | null; count: number; items: MatchItem[] };
 
 export type RecommendationItem = {
+  recommendation_key?: string | null;
   game_id?: string | null;
   date?: string | null;
   league?: string | null;

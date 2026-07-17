@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ApiUnavailable } from "@/components/ApiUnavailable";
-import { LiveMatchCenter } from "@/components/match/LiveMatchCenter";
+import { LiveMatchCenter, LiveResultComparison, MatchHeroScore } from "@/components/match/LiveMatchCenter";
 import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
 import {
@@ -14,9 +14,7 @@ import {
 import {
   asNumber,
   asObject,
-  buildResultComparison,
   getQuarterProfiles,
-  heuristicBadges,
   normalizePrematchMarkets,
   shotMarketRows,
 } from "@/lib/matchUtils";
@@ -71,7 +69,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   const postgame = postgameResult.data;
   const recs = recsResult.data;
   const frozen = frozenResult.data;
-  const score = match.score || { home: match.home_score, away: match.away_score };
+  const liveSeed = initialLive(match);
   const frozenItems = frozenRecommendations(frozen);
   const modelSource = frozen.models || prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) || {};
   const marketSource = frozen.markets || prematch.market || match.market || {};
@@ -84,7 +82,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
 
   return (
     <section className="matchPage">
-      <MatchHero match={match} score={score} />
+      <MatchHero match={match} initialLive={liveSeed} />
       <nav className="tabsRow stickyTabs" aria-label="Match sections">
         {tabs.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}
       </nav>
@@ -95,15 +93,14 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
           <PrematchSection prematch={prematch} frozen={frozen} frozenItems={frozenItems} models={modelSource} />
           <LiveMatchCenter
             gameId={gameId}
-            initialLive={initialLive(match)}
+            initialLive={liveSeed}
             initialSignals={{ game_id: gameId, count: 0, items: [] }}
-            initialPostgame={postgame}
             initialStatus={match.status}
           />
           <MarketsSection markets={marketSource} models={modelSource} />
           <TeamFormSection prematch={prematch} frozen={frozen} match={match} />
           <QuarterProfilesSection prematch={prematch} frozen={frozen} />
-          <ShotMarketsSection prematch={prematch} />
+          <ShotMarketsSection prematch={prematch} frozen={frozen} />
           <section className="panel" id="recommendations">
             <div className="panelHeader">
               <h2>Recommendations</h2>
@@ -111,7 +108,15 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
             </div>
             <RecommendationTable items={recs.items} />
           </section>
-          <ResultSection postgame={postgame} match={match} frozen={frozen} recs={recs} />
+          <LiveResultComparison
+            gameId={gameId}
+            initialLive={liveSeed}
+            initialStatus={match.status}
+            initialPostgame={postgame}
+            match={match}
+            frozenItems={frozenItems}
+            ledgerItems={recs.items}
+          />
         </div>
 
         <aside className="matchRail">
@@ -150,8 +155,7 @@ function initialLive(match: MatchDetailResponse): LiveResponse {
   };
 }
 
-function MatchHero({ match, score }: { match: MatchDetailResponse; score: { home?: number | null; away?: number | null } }) {
-  const status = match.flags?.has_live ? "LIVE" : (match.status || "scheduled").toUpperCase();
+function MatchHero({ match, initialLive }: { match: MatchDetailResponse; initialLive: LiveResponse }) {
   return (
     <header className="matchHero">
       <div>
@@ -162,10 +166,7 @@ function MatchHero({ match, score }: { match: MatchDetailResponse; score: { home
         <h1>{match.home_team || "Home"} vs {match.away_team || "Away"}</h1>
       </div>
       <div className="scoreBoard">
-        <div><span>{match.home_team || "Home"}</span><strong>{score.home ?? "-"}</strong></div>
-        <div className="scoreDivider">:</div>
-        <div><span>{match.away_team || "Away"}</span><strong>{score.away ?? "-"}</strong></div>
-        <StatusPill label={status} tone={match.flags?.has_live ? "red" : "neutral"} />
+        <MatchHeroScore gameId={match.game_id} match={match} initialLive={initialLive} />
       </div>
     </header>
   );
@@ -309,8 +310,8 @@ function QuarterProfilesSection({ prematch, frozen }: { prematch: PrematchRespon
   );
 }
 
-function ShotMarketsSection({ prematch }: { prematch: PrematchResponse }) {
-  const rows = shotMarketRows(prematch.shot_markets);
+function ShotMarketsSection({ prematch, frozen }: { prematch: PrematchResponse; frozen: FrozenPrematchResponse }) {
+  const rows = shotMarketRows(frozen.shot_markets || prematch.shot_markets);
   return (
     <section className="panel" id="shot-markets">
       <div className="panelHeader"><h2>Shot Markets</h2><StatusPill label="2PM / 3PM" tone="purple" /></div>
@@ -322,75 +323,6 @@ function ShotMarketsSection({ prematch }: { prematch: PrematchResponse }) {
             <small>line {formatNum(row.line, 1)} · edge {formatNum(row.edge, 1)}</small>
           </div>
         ))}
-      </div>
-    </section>
-  );
-}
-
-function ResultSection({
-  postgame,
-  match,
-  frozen,
-  recs,
-}: {
-  postgame: PostgameResponse;
-  match: MatchDetailResponse;
-  frozen: FrozenPrematchResponse;
-  recs: RecommendationsResponse;
-}) {
-  const rows = buildResultComparison(frozenRecommendations(frozen), recs.items);
-  const badges = heuristicBadges(postgame);
-  return (
-    <section className="panel" id="result">
-      <div className="panelHeader">
-        <h2>Result comparison</h2>
-        <StatusPill label={postgame.available ? "FINAL" : "PENDING"} tone={postgame.available ? "green" : "neutral"} />
-      </div>
-      <div className="resultGrid">
-        <Metric label="Final score" value={`${postgame.final_score?.home ?? match.home_score ?? "-"} : ${postgame.final_score?.away ?? match.away_score ?? "-"}`} />
-        <Metric label="Final total" value={postgame.final_score?.total ?? "-"} />
-        <Metric label="Signals P/L" value={`${formatNum(postgame.signals_summary?.profit_1u, 2)}u`} />
-        <Metric label="Rows" value={rows.length} />
-      </div>
-      {postgame.best_bet_result ? (
-        <div className="emptyCard">
-          <div className="statusCluster">{badges.map((badge) => <StatusPill key={badge} label={badge} tone="purple" />)}</div>
-          <strong>{postgame.best_bet_result.market || "-"} · {postgame.best_bet_result.selection || "-"}</strong>
-          <small>{postgame.best_bet_result.result || "-"} · {formatNum(postgame.best_bet_result.profit_1u, 2)}u</small>
-        </div>
-      ) : null}
-      <div className="tableScroller comparisonScroller">
-        <table className="comparisonTable">
-          <thead>
-            <tr>
-              <th>Market</th>
-              <th>Pick</th>
-              <th>Prematch line</th>
-              <th>Odds</th>
-              <th>Projection</th>
-              <th>Edge</th>
-              <th>Actual value</th>
-              <th>Result status</th>
-              <th>Profit 1u</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <td>{row.market || "-"}</td>
-                <td>{row.pick || "-"}</td>
-                <td>{formatNum(row.line, 1)}</td>
-                <td>{formatNum(row.odds, 2)}</td>
-                <td>{formatNum(row.projection, 1)}</td>
-                <td>{formatNum(row.edge, 1)}</td>
-                <td>{formatNum(row.actualValue, 1)}</td>
-                <td>{row.resultStatus || "-"}</td>
-                <td>{formatNum(row.profit1u, 2)}</td>
-              </tr>
-            ))}
-            {!rows.length ? <tr><td colSpan={9}>No result comparison rows yet.</td></tr> : null}
-          </tbody>
-        </table>
       </div>
     </section>
   );
