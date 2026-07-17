@@ -148,7 +148,7 @@ function buildSpreadMarket(
     underOdds,
     projection: projectedMargin,
     edge: missing ? null : edge,
-    pick: missing ? null : pickFromEdge(edge, "HOME_COVER", "AWAY_COVER"),
+    pick: missing ? null : pickFromEdge(edge, side === "home" ? "HOME_COVER" : "AWAY_COVER", side === "home" ? "AWAY_COVER" : "HOME_COVER"),
     status: missing ? "missing_data" : available === false ? unavailableReason || "unavailable" : "available",
   };
 }
@@ -214,12 +214,19 @@ export function comparisonKey(item: RecommendationItem): string {
   return [normalizeText(item.market), normalizeText(item.pick), normalizeLine(item.line)].join("|");
 }
 
+export function comparisonAliases(item: RecommendationItem): string[] {
+  return Array.from(new Set([
+    item.recommendation_key || null,
+    [normalizeText(item.market), normalizeText(item.pick), normalizeLine(item.line)].join("|"),
+  ].filter(Boolean) as string[]));
+}
+
 export function buildResultComparison(
   frozenItems: RecommendationItem[],
   ledgerItems: RecommendationItem[],
   postgame?: PostgameResponse,
 ): ResultComparisonRow[] {
-  const ledger = new Map(ledgerItems.map((item) => [comparisonKey(item), item]));
+  const ledger = new Map(ledgerItems.flatMap((item) => comparisonAliases(item).map((key) => [key, item] as [string, RecommendationItem])));
   const postgameResults = postgameResultMap(postgame);
   const merged = frozenItems.length ? frozenItems : ledgerItems;
   if (!merged.length && postgameResults.size) {
@@ -237,8 +244,8 @@ export function buildResultComparison(
     }));
   }
   return merged.map((item, index) => {
-    const settled = ledger.get(comparisonKey(item)) || item;
-    const postgameSettled = postgameResults.get(comparisonKey(item)) || postgameResults.get(item.recommendation_key || "");
+    const settled = comparisonAliases(item).map((key) => ledger.get(key)).find(Boolean) || item;
+    const postgameSettled = comparisonAliases(item).map((key) => postgameResults.get(key)).find(Boolean);
     return {
       key: comparisonKey(item) || `row-${index}`,
       market: item.market ?? null,
@@ -252,6 +259,10 @@ export function buildResultComparison(
       profit1u: asNumber(postgameSettled?.profit_1u) ?? settled.profit_1u ?? null,
     };
   });
+}
+
+export function isSettlementComplete(rows: ResultComparisonRow[]): boolean {
+  return rows.some((row) => ["WIN", "LOSS", "PUSH"].includes(String(row.resultStatus || "").toUpperCase()));
 }
 
 function postgameResultMap(postgame?: PostgameResponse): Map<string, ApiObject> {

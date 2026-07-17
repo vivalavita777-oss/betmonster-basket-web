@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ApiUnavailable } from "@/components/ApiUnavailable";
-import { LiveMatchCenter, LiveResultComparison, MatchHeroScore } from "@/components/match/LiveMatchCenter";
+import { LiveMatchCenter, LiveMatchProvider, LiveResultComparison, MatchHeroScore } from "@/components/match/LiveMatchCenter";
 import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
 import {
@@ -81,8 +81,9 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   ].filter(([, error]) => error);
 
   return (
+    <LiveMatchProvider gameId={gameId} initialLive={liveSeed} initialSignals={{ game_id: gameId, count: 0, items: [] }} initialStatus={match.status}>
     <section className="matchPage">
-      <MatchHero match={match} initialLive={liveSeed} />
+      <MatchHero match={match} />
       <nav className="tabsRow stickyTabs" aria-label="Match sections">
         {tabs.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}
       </nav>
@@ -91,12 +92,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
         <div className="matchMain">
           {endpointErrors.map(([label, error]) => <EndpointNotice key={label} label={label || "Endpoint"} error={error || ""} />)}
           <PrematchSection prematch={prematch} frozen={frozen} frozenItems={frozenItems} models={modelSource} />
-          <LiveMatchCenter
-            gameId={gameId}
-            initialLive={liveSeed}
-            initialSignals={{ game_id: gameId, count: 0, items: [] }}
-            initialStatus={match.status}
-          />
+          <LiveMatchCenter />
           <MarketsSection markets={marketSource} models={modelSource} />
           <TeamFormSection prematch={prematch} frozen={frozen} match={match} />
           <QuarterProfilesSection prematch={prematch} frozen={frozen} />
@@ -109,9 +105,6 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
             <RecommendationTable items={recs.items} />
           </section>
           <LiveResultComparison
-            gameId={gameId}
-            initialLive={liveSeed}
-            initialStatus={match.status}
             initialPostgame={postgame}
             match={match}
             frozenItems={frozenItems}
@@ -134,6 +127,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
         </aside>
       </section>
     </section>
+    </LiveMatchProvider>
   );
 }
 
@@ -155,7 +149,7 @@ function initialLive(match: MatchDetailResponse): LiveResponse {
   };
 }
 
-function MatchHero({ match, initialLive }: { match: MatchDetailResponse; initialLive: LiveResponse }) {
+function MatchHero({ match }: { match: MatchDetailResponse }) {
   return (
     <header className="matchHero">
       <div>
@@ -166,7 +160,7 @@ function MatchHero({ match, initialLive }: { match: MatchDetailResponse; initial
         <h1>{match.home_team || "Home"} vs {match.away_team || "Away"}</h1>
       </div>
       <div className="scoreBoard">
-        <MatchHeroScore gameId={match.game_id} match={match} initialLive={initialLive} />
+        <MatchHeroScore match={match} />
       </div>
     </header>
   );

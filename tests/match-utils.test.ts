@@ -6,6 +6,7 @@ import {
   effectiveMatchStatus,
   getQuarterProfiles,
   heuristicBadges,
+  isSettlementComplete,
   normalizeLiveMarkets,
   normalizeLiveThreePm,
   normalizePrematchMarkets,
@@ -43,7 +44,7 @@ describe("Phase C match utilities", () => {
     });
 
     expect(rows.find((row) => row.key === "live_spread_home")).toMatchObject({ line: -4.5, edge: 3.5, pick: "HOME_COVER" });
-    expect(rows.find((row) => row.key === "live_spread_away")).toMatchObject({ line: 4.5, edge: -3.5, pick: "AWAY_COVER" });
+    expect(rows.find((row) => row.key === "live_spread_away")).toMatchObject({ line: 4.5, edge: -3.5, pick: "HOME_COVER" });
     expect(rows.find((row) => row.key === "live_it_home")).toMatchObject({ line: 43.5, projection: 47 });
   });
 
@@ -102,6 +103,24 @@ describe("Phase C match utilities", () => {
     expect(rows[0]).toMatchObject({ actualValue: 172, resultStatus: "WIN", profit1u: 0.91 });
   });
 
+  it("merges frozen without recommendation_key to ledger with recommendation_key", () => {
+    const rows = buildResultComparison(
+      [{ market: "Total", pick: "OVER", line: 166.5 }],
+      [{ recommendation_key: "rec-1", market: "Total", pick: "OVER", line: 166.5, result_status: "WIN", actual_value: 172, profit_1u: 0.91 }],
+    );
+
+    expect(rows[0]).toMatchObject({ resultStatus: "WIN", actualValue: 172, profit1u: 0.91 });
+  });
+
+  it("merges frozen with recommendation_key to ledger without recommendation_key", () => {
+    const rows = buildResultComparison(
+      [{ recommendation_key: "rec-1", market: "Total", pick: "OVER", line: 166.5 }],
+      [{ market: "Total", pick: "OVER", line: 166.5, result_status: "LOSS", actual_value: 160, profit_1u: -1 }],
+    );
+
+    expect(rows[0]).toMatchObject({ resultStatus: "LOSS", actualValue: 160, profit1u: -1 });
+  });
+
   it("hydrates result comparison rows from postgame market results", () => {
     const rows = buildResultComparison(
       [{ market: "Total", pick: "OVER", line: 166.5 }],
@@ -110,6 +129,14 @@ describe("Phase C match utilities", () => {
     );
 
     expect(rows[0]).toMatchObject({ actualValue: 172, resultStatus: "WIN", profit1u: 0.91 });
+  });
+
+  it("detects settlement pending and complete states", () => {
+    expect(isSettlementComplete(buildResultComparison([{ market: "Total", pick: "OVER", line: 166.5 }], []))).toBe(false);
+    expect(isSettlementComplete(buildResultComparison(
+      [{ market: "Total", pick: "OVER", line: 166.5 }],
+      [{ market: "Total", pick: "OVER", line: 166.5, result_status: "PUSH", profit_1u: 0 }],
+    ))).toBe(true);
   });
 
   it("labels postgame best bet as heuristic and low confidence", () => {

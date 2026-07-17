@@ -104,6 +104,7 @@ export type LiveThreePmMarket = {
   updated_at?: string | null;
   source_age_seconds?: number | null;
   source_age_sec?: number | null;
+  signal_status?: string | null;
 };
 
 export type LiveResponse = {

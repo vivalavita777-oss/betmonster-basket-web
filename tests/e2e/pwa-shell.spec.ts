@@ -94,8 +94,10 @@ test("match page updates live score and signals from client polling", async ({ p
 
   await page.goto("/match/1022600187");
   await expect(page.getByText("10 : 9")).toBeVisible();
-  await expect(page.locator("#live-center").getByText("Home 3PM")).toBeVisible();
+  await expect(page.locator("#live-center").getByText("Home 3PM", { exact: true })).toBeVisible();
   await expect(page.locator("#live-center").getByText(/age 7s/)).toBeVisible();
+  await expect(page.locator("#live-center").getByText("TOTAL 3PM MARKET")).toBeVisible();
+  await expect(page.locator("#live-center").getByText("TOTAL 3PM SIGNAL")).toHaveCount(0);
   await expect(page.getByText("1 SIGNALS")).toBeVisible();
   await page.waitForTimeout(10500);
   await expect(page.getByText("12 : 9")).toBeVisible();
@@ -103,7 +105,10 @@ test("match page updates live score and signals from client polling", async ({ p
 });
 
 test("scheduled match transitions live to finished and updates result without reload", async ({ page }) => {
+  test.setTimeout(45000);
   let liveCalls = 0;
+  let postgameCalls = 0;
+  let recommendationCalls = 0;
   await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/live", (route) => {
     liveCalls += 1;
     const finished = liveCalls > 1;
@@ -125,15 +130,41 @@ test("scheduled match transitions live to finished and updates result without re
     contentType: "application/json",
     body: JSON.stringify({ game_id: "1022600187", count: 1, items: [{ signal_no: "sig-1", market: "Total", selection: "OVER", line: 166.5, odds: 1.91, edge: 4.5, status: "PLAY", created_at: "2026-07-18T02:05:00Z" }] }),
   }));
-  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/postgame", (route) => route.fulfill({
-    contentType: "application/json",
-    body: JSON.stringify({
-      available: true,
-      final_score: { home: 12, away: 9, total: 21, margin: 3 },
-      market_results: [{ market: "Total", selection: "OVER", line: 166.5, actual_value: 172, result_status: "WIN", profit_1u: 0.91 }],
-      signals_summary: { wins: 1, losses: 0, pushes: 0, profit_1u: 0.91 },
-    }),
-  }));
+  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/postgame", (route) => {
+    postgameCalls += 1;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(postgameCalls === 1
+        ? { available: false }
+        : { available: true, final_score: { home: 12, away: 9, total: 21, margin: 3 }, signals_summary: { wins: 1, losses: 0, pushes: 0, profit_1u: 0.91 } }),
+    });
+  });
+  await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/recommendations", (route) => {
+    recommendationCalls += 1;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        count: 1,
+        limit: 100,
+        offset: 0,
+        cohorts: ["production_prematch"],
+        items: [{
+          recommendation_key: "total-over-16650",
+          game_id: "1022600187",
+          market: "Total",
+          pick: "OVER",
+          line: 166.5,
+          odds: 1.91,
+          model_projection: 171,
+          edge: 4.5,
+          status: "PLAY",
+          actual_value: recommendationCalls > 1 ? 172 : null,
+          result_status: recommendationCalls > 1 ? "WIN" : null,
+          profit_1u: recommendationCalls > 1 ? 0.91 : null,
+        }],
+      }),
+    });
+  });
 
   await page.goto("/match/1022600187");
   await expect(page.locator(".scoreBoard strong").first()).toHaveText("10");
@@ -142,8 +173,13 @@ test("scheduled match transitions live to finished and updates result without re
   await expect(page.getByText("POLLING STOPPED")).toBeVisible();
   await expect(page.locator(".scoreBoard strong").first()).toHaveText("12");
   await expect(page.locator("#live-center").getByText("12 : 9")).toBeVisible();
-  await expect(page.locator("#result").getByText("FINAL", { exact: true })).toBeVisible();
+  await expect(page.locator("#result").getByText("SETTLEMENT PENDING", { exact: true })).toBeVisible();
+  await expect(page.locator("#result").getByText("FINAL SCORE AVAILABLE", { exact: true })).toBeVisible({ timeout: 7000 });
   await expect(page.getByRole("row", { name: /Total OVER 166\.5 .* 172\.0 WIN 0\.91/ })).toBeVisible();
+  const callsAfterFinished = liveCalls;
+  await page.waitForTimeout(11000);
+  expect(liveCalls).toBe(callsAfterFinished);
+  expect(recommendationCalls).toBeGreaterThanOrEqual(2);
 });
 
 for (const viewport of [
