@@ -237,6 +237,7 @@ main {
 .quarterGrid,
 .shotGrid,
 .signalGrid,
+.liveThreePmGrid,
 .resultGrid,
 .miniMetrics {
   display: grid;
@@ -254,7 +255,8 @@ main {
 
 .marketGrid,
 .shotGrid,
-.signalGrid {
+.signalGrid,
+.liveThreePmGrid {
   grid-template-columns: repeat(3, 1fr);
 }
 
@@ -270,10 +272,29 @@ main {
 .modelCard small,
 .marketMini small,
 .shotCard small,
-.signalCard small {
+.signalCard small,
+.emptyCard small {
   display: block;
   margin-top: 5px;
   color: var(--muted);
+}
+
+.statusCluster,
+.telemetryRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.telemetryRow {
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.telemetryRow strong {
+  color: #fbbf24;
 }
 
 .liveScoreTile,
@@ -488,6 +509,26 @@ h2 {
   background: #2b1115;
 }
 
+.endpointNotice {
+  font-size: 13px;
+}
+
+.comparisonScroller {
+  margin-top: 12px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .metricGrid,
 .bucketGrid {
   display: grid;
@@ -563,6 +604,7 @@ th {
   .marketStrip,
   .shotGrid,
   .signalGrid,
+  .liveThreePmGrid,
   .resultGrid {
     grid-template-columns: 1fr 1fr;
   }
@@ -607,6 +649,7 @@ th {
   .quarterGrid,
   .shotGrid,
   .signalGrid,
+  .liveThreePmGrid,
   .resultGrid,
   .compactMetrics,
   .miniMetrics {

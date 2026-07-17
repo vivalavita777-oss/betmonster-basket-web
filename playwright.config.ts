@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   use: {
     baseURL: "http://127.0.0.1:3000",
+    serviceWorkers: "block",
     trace: "on-first-retry"
   },
   projects: [

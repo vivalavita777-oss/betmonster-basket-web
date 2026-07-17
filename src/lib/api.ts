@@ -1,3 +1,7 @@
+import type { FrozenPrematchResponse } from "./matchTypes";
+
+export type { FrozenPrematchResponse } from "./matchTypes";
+
 export type MatchItem = {
   game_id: string;
   league?: string | null;
@@ -29,6 +33,7 @@ export type RecommendationItem = {
   pick?: string | null;
   line?: number | null;
   odds?: number | null;
+  model_projection?: number | null;
   edge?: number | null;
   status?: string | null;
   confidence?: string | null;
@@ -36,6 +41,7 @@ export type RecommendationItem = {
   calculation_revision?: string | null;
   roster_state?: string | null;
   cohort?: string | null;
+  actual_value?: number | null;
   result_status?: string | null;
   profit_1u?: number | null;
 };
@@ -46,23 +52,6 @@ export type RecommendationsResponse = {
   offset: number;
   cohorts: string[];
   items: RecommendationItem[];
-};
-
-export type FrozenPrematchResponse = {
-  available: boolean;
-  source: "snapshot_store" | "fallback_ledger";
-  partial: boolean;
-  revision?: string | null;
-  snapshot_at?: string | null;
-  calculation_source?: string | null;
-  items?: RecommendationItem[];
-  site_recommendations?: {
-    top_candidates?: RecommendationItem[];
-  };
-  markets?: unknown;
-  models?: unknown;
-  analytics?: unknown;
-  line_snapshot?: unknown;
 };
 
 export type PerformanceMetrics = {
