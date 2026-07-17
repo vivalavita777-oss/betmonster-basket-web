@@ -3,7 +3,9 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 
 import { MetricGrid } from "@/components/MetricGrid";
+import { ApiUnavailable } from "@/components/ApiUnavailable";
 import { RecommendationTable, recommendationSourceLabel } from "@/components/RecommendationTable";
+import { frozenBadgeLabel, frozenRecommendations, FrozenPrematchResponse } from "@/lib/api";
 
 describe("recommendation rendering", () => {
   it("renders recommendation rows with CONF source", () => {
@@ -48,5 +50,38 @@ describe("recommendation rendering", () => {
 
     expect(screen.getByText("62.5%")).toBeTruthy();
     expect(screen.getByText("2.13")).toBeTruthy();
+  });
+
+  it("normalizes snapshot_store frozen recommendations", () => {
+    const frozen: FrozenPrematchResponse = {
+      available: true,
+      source: "snapshot_store",
+      partial: false,
+      revision: "rev1",
+      site_recommendations: {
+        top_candidates: [{ game_id: "game-1", market: "Total", pick: "UNDER" }],
+      },
+    };
+
+    expect(frozenRecommendations(frozen)).toHaveLength(1);
+    expect(frozenBadgeLabel(frozen)).toBe("FROZEN SNAPSHOT");
+  });
+
+  it("normalizes fallback_ledger frozen recommendations", () => {
+    const frozen: FrozenPrematchResponse = {
+      available: true,
+      source: "fallback_ledger",
+      partial: true,
+      items: [{ game_id: "game-1", market: "Spread Home", pick: "HOME_COVER" }],
+    };
+
+    expect(frozenRecommendations(frozen)[0].market).toBe("Spread Home");
+    expect(frozenBadgeLabel(frozen)).toBe("PARTIAL LEDGER FALLBACK");
+  });
+
+  it("renders API unavailable state", () => {
+    render(<ApiUnavailable title="Match API unavailable" />);
+    expect(screen.getByText("Match API unavailable")).toBeTruthy();
+    expect(screen.getByText("Last known data is unavailable.")).toBeTruthy();
   });
 });

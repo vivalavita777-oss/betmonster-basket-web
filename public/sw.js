@@ -1,6 +1,6 @@
-const SHELL_CACHE = "basket-monster-shell-v2";
-const STATIC_CACHE = "basket-monster-static-v2";
-const PAGE_CACHE = "basket-monster-pages-v2";
+const SHELL_CACHE = "basket-monster-shell-v3";
+const STATIC_CACHE = "basket-monster-static-v3";
+const PAGE_CACHE = "basket-monster-pages-v3";
 const SHELL = ["/", "/offline", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -22,7 +22,8 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
 
-  if (isNetworkOnlyApi(url)) {
+  if (url.pathname.startsWith("/api/backend/")) {
+    event.respondWith(fetch(event.request));
     return;
   }
 
@@ -40,16 +41,6 @@ self.addEventListener("fetch", (event) => {
     networkFirst(event.request, PAGE_CACHE)
   );
 });
-
-function isNetworkOnlyApi(url) {
-  if (!url.pathname.startsWith("/api/backend/")) return false;
-  return (
-    url.pathname.includes("/live") ||
-    url.pathname.includes("/signals") ||
-    url.pathname.includes("/performance") ||
-    url.searchParams.get("status") === "live"
-  );
-}
 
 async function cacheFirst(request, cacheName) {
   const cached = await caches.match(request);

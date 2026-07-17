@@ -1,4 +1,4 @@
-import { serverApiGet, RecommendationsResponse } from "@/lib/api";
+import { frozenBadgeLabel, frozenRecommendations, FrozenPrematchResponse, serverApiGet, RecommendationsResponse } from "@/lib/api";
 import { ApiUnavailable } from "@/components/ApiUnavailable";
 import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
@@ -18,16 +18,17 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   const { gameId } = await params;
   let match: MatchDetail;
   let recs: RecommendationsResponse;
-  let frozen: { available: boolean; snapshot_at?: string; items?: RecommendationsResponse["items"] };
+  let frozen: FrozenPrematchResponse;
   try {
     [match, recs, frozen] = await Promise.all([
       serverApiGet<MatchDetail>(`/api/v1/public/basket/matches/${gameId}`),
       serverApiGet<RecommendationsResponse>(`/api/v1/public/basket/matches/${gameId}/recommendations`),
-      serverApiGet<{ available: boolean; snapshot_at?: string; items?: RecommendationsResponse["items"] }>(`/api/v1/public/basket/matches/${gameId}/frozen-prematch`)
+      serverApiGet<FrozenPrematchResponse>(`/api/v1/public/basket/matches/${gameId}/frozen-prematch`)
     ]);
   } catch {
     return <ApiUnavailable title="Match API unavailable" />;
   }
+  const frozenItems = frozenRecommendations(frozen);
   return (
     <section className="pageStack">
       <div className="detailHero">
@@ -47,9 +48,20 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
         <pre>{JSON.stringify({ market: match.market, model_summary: match.model_summary }, null, 2)}</pre>
       </section>
       <section className="panel" id="prematch">
-        <h2>Frozen Prematch</h2>
-        {frozen.available ? <p>Snapshot: {frozen.snapshot_at}</p> : <div className="emptyCard">Frozen prematch snapshot is not available.</div>}
-        <RecommendationTable items={frozen.items || []} />
+        <div className="panelHeader">
+          <h2>Frozen Prematch</h2>
+          <StatusPill label={frozenBadgeLabel(frozen)} tone={frozen.partial ? "purple" : "green"} />
+        </div>
+        {frozen.available ? (
+          <p>
+            Snapshot: {frozen.snapshot_at || "-"}
+            {frozen.revision ? ` · Revision: ${frozen.revision}` : ""}
+            {frozen.calculation_source ? ` · Source: ${frozen.calculation_source.toUpperCase()}` : ""}
+          </p>
+        ) : (
+          <div className="emptyCard">Frozen prematch snapshot is not available.</div>
+        )}
+        <RecommendationTable items={frozenItems} />
       </section>
       <section className="panel" id="recommendations">
         <h2>Recommendations</h2>

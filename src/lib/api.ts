@@ -48,6 +48,23 @@ export type RecommendationsResponse = {
   items: RecommendationItem[];
 };
 
+export type FrozenPrematchResponse = {
+  available: boolean;
+  source: "snapshot_store" | "fallback_ledger";
+  partial: boolean;
+  revision?: string | null;
+  snapshot_at?: string | null;
+  calculation_source?: string | null;
+  items?: RecommendationItem[];
+  site_recommendations?: {
+    top_candidates?: RecommendationItem[];
+  };
+  markets?: unknown;
+  models?: unknown;
+  analytics?: unknown;
+  line_snapshot?: unknown;
+};
+
 export type PerformanceMetrics = {
   recommendations: number;
   settled: number;
@@ -81,6 +98,16 @@ export async function serverApiGet<T>(path: string): Promise<T> {
     throw new Error(`${response.status} ${response.statusText}`);
   }
   return response.json() as Promise<T>;
+}
+
+export function frozenRecommendations(frozen: FrozenPrematchResponse): RecommendationItem[] {
+  return frozen.items ?? frozen.site_recommendations?.top_candidates ?? [];
+}
+
+export function frozenBadgeLabel(frozen: FrozenPrematchResponse): string {
+  return frozen.source === "snapshot_store" && !frozen.partial
+    ? "FROZEN SNAPSHOT"
+    : "PARTIAL LEDGER FALLBACK";
 }
 
 export function formatPct(value: number | null | undefined): string {

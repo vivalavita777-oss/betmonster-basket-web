@@ -126,6 +126,7 @@ main {
 
 .filterBar,
 .sectionHeader,
+.panelHeader,
 .cardTop,
 .scoreLine,
 .signalRow,
@@ -138,6 +139,7 @@ main {
 
 .filterBar,
 .sectionHeader,
+.panelHeader,
 .detailHero {
   justify-content: space-between;
 }
@@ -354,6 +356,7 @@ th {
 
   .filterBar,
   .sectionHeader,
+  .panelHeader,
   .detailHero {
     align-items: flex-start;
     flex-direction: column;
