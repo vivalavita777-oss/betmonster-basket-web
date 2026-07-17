@@ -6,7 +6,8 @@ export default function SettingsPage() {
       </div>
       <div className="panel">
         <h2>Environment</h2>
-        <p>API base: <code>{process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8010"}</code></p>
+        <p>Backend proxy: <code>/api/backend</code></p>
+        <p>App timezone: <code>{process.env.NEXT_PUBLIC_APP_TIMEZONE || "America/New_York"}</code></p>
       </div>
     </section>
   );

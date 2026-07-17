@@ -32,6 +32,9 @@ export type RecommendationItem = {
   edge?: number | null;
   status?: string | null;
   confidence?: string | null;
+  calculation_source?: string | null;
+  calculation_revision?: string | null;
+  roster_state?: string | null;
   cohort?: string | null;
   result_status?: string | null;
   profit_1u?: number | null;
@@ -61,24 +64,23 @@ export type PerformanceMetrics = {
   median_edge: number | null;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8010";
+const BACKEND_PREFIX = "/api/backend";
+const SERVER_API_BASE = process.env.BASKET_API_INTERNAL_URL || "http://127.0.0.1:8010";
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  const response = await fetch(`${BACKEND_PREFIX}${path}`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}`);
   }
   return response.json() as Promise<T>;
 }
 
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-export function addDaysIso(date: string, days: number): string {
-  const value = new Date(`${date}T00:00:00`);
-  value.setDate(value.getDate() + days);
-  return value.toISOString().slice(0, 10);
+export async function serverApiGet<T>(path: string): Promise<T> {
+  const response = await fetch(`${SERVER_API_BASE}${path}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<T>;
 }
 
 export function formatPct(value: number | null | undefined): string {

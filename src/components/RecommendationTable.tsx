@@ -1,6 +1,10 @@
 import { RecommendationItem, formatNum } from "@/lib/api";
 import { StatusPill } from "./StatusPill";
 
+export function recommendationSourceLabel(item: RecommendationItem): string {
+  return (item.calculation_source || item.cohort || "public").toUpperCase();
+}
+
 export function RecommendationTable({ items }: { items: RecommendationItem[] }) {
   if (!items.length) return <div className="emptyCard">No public recommendations.</div>;
   return (
@@ -14,6 +18,7 @@ export function RecommendationTable({ items }: { items: RecommendationItem[] }) 
             <th>Odds</th>
             <th>Edge</th>
             <th>Status</th>
+            <th>Source</th>
             <th>Result</th>
           </tr>
         </thead>
@@ -26,6 +31,7 @@ export function RecommendationTable({ items }: { items: RecommendationItem[] }) 
               <td>{formatNum(item.odds, 2)}</td>
               <td>{formatNum(item.edge)}</td>
               <td><StatusPill label={item.status} tone={item.cohort === "research_lean" ? "purple" : "green"} /></td>
+              <td><StatusPill label={recommendationSourceLabel(item)} tone={item.calculation_source === "conf" ? "green" : "purple"} /></td>
               <td>{item.result_status || "-"}</td>
             </tr>
           ))}

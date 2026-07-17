@@ -1,4 +1,5 @@
-import { apiGet, RecommendationsResponse } from "@/lib/api";
+import { serverApiGet, RecommendationsResponse } from "@/lib/api";
+import { ApiUnavailable } from "@/components/ApiUnavailable";
 import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
 
@@ -15,11 +16,18 @@ type MatchDetail = {
 
 export default async function MatchPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = await params;
-  const [match, recs, frozen] = await Promise.all([
-    apiGet<MatchDetail>(`/api/v1/public/basket/matches/${gameId}`),
-    apiGet<RecommendationsResponse>(`/api/v1/public/basket/matches/${gameId}/recommendations`),
-    apiGet<{ available: boolean; snapshot_at?: string; items?: RecommendationsResponse["items"] }>(`/api/v1/public/basket/matches/${gameId}/frozen-prematch`)
-  ]);
+  let match: MatchDetail;
+  let recs: RecommendationsResponse;
+  let frozen: { available: boolean; snapshot_at?: string; items?: RecommendationsResponse["items"] };
+  try {
+    [match, recs, frozen] = await Promise.all([
+      serverApiGet<MatchDetail>(`/api/v1/public/basket/matches/${gameId}`),
+      serverApiGet<RecommendationsResponse>(`/api/v1/public/basket/matches/${gameId}/recommendations`),
+      serverApiGet<{ available: boolean; snapshot_at?: string; items?: RecommendationsResponse["items"] }>(`/api/v1/public/basket/matches/${gameId}/frozen-prematch`)
+    ]);
+  } catch {
+    return <ApiUnavailable title="Match API unavailable" />;
+  }
   return (
     <section className="pageStack">
       <div className="detailHero">

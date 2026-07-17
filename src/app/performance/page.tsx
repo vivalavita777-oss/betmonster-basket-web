@@ -1,9 +1,18 @@
-import { apiGet, PerformanceMetrics } from "@/lib/api";
+import { serverApiGet, PerformanceMetrics } from "@/lib/api";
+import { ApiUnavailable } from "@/components/ApiUnavailable";
 import { MetricGrid } from "@/components/MetricGrid";
 
 export default async function PerformancePage() {
-  const summary = await apiGet<PerformanceMetrics & { cohorts: string[] }>("/api/v1/public/basket/performance");
-  const buckets = await apiGet<{ items: Array<PerformanceMetrics & { edge_bucket: string }> }>("/api/v1/public/basket/performance/edge-buckets");
+  let summary: PerformanceMetrics & { cohorts: string[] };
+  let buckets: { items: Array<PerformanceMetrics & { edge_bucket: string }> };
+  try {
+    [summary, buckets] = await Promise.all([
+      serverApiGet<PerformanceMetrics & { cohorts: string[] }>("/api/v1/public/basket/performance"),
+      serverApiGet<{ items: Array<PerformanceMetrics & { edge_bucket: string }> }>("/api/v1/public/basket/performance/edge-buckets")
+    ]);
+  } catch {
+    return <ApiUnavailable title="Performance API unavailable" />;
+  }
   return (
     <section className="pageStack">
       <div className="sectionHeader">

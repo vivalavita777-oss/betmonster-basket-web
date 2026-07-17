@@ -96,12 +96,20 @@ pre {
 
 .desktopNav a,
 .segmented a,
-.tabsRow a {
+.tabsRow a,
+.textButton {
   padding: 8px 11px;
   border: 1px solid var(--line);
   border-radius: 8px;
   color: #c7d4e4;
   background: #0a1728;
+}
+
+.textButton {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 10px;
+  cursor: pointer;
 }
 
 main {
@@ -285,7 +293,7 @@ h2 {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 780px;
   background: var(--panel);
 }
 

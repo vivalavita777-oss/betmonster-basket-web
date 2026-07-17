@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { todayIso } from "@/lib/api";
+import { appTodayIso } from "@/lib/time";
 
 export default function HomePage() {
-  redirect(`/basket/${todayIso()}`);
+  redirect(`/basket/${appTodayIso()}`);
 }

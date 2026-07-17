@@ -2,7 +2,8 @@
 
 import useSWR from "swr";
 import Link from "next/link";
-import { addDaysIso, apiGet, MatchListResponse } from "@/lib/api";
+import { apiGet, MatchListResponse } from "@/lib/api";
+import { addDaysIso } from "@/lib/time";
 import { MatchCard } from "./MatchCard";
 
 const fetcher = (path: string) => apiGet<MatchListResponse>(path);

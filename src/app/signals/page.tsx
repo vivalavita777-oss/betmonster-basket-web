@@ -1,8 +1,15 @@
-import { apiGet, RecommendationsResponse, todayIso } from "@/lib/api";
+import { serverApiGet, RecommendationsResponse } from "@/lib/api";
+import { ApiUnavailable } from "@/components/ApiUnavailable";
 import { RecommendationTable } from "@/components/RecommendationTable";
+import { appTodayIso } from "@/lib/time";
 
 export default async function SignalsPage() {
-  const data = await apiGet<RecommendationsResponse>(`/api/v1/public/basket/recommendations?date=${todayIso()}&limit=50`);
+  let data: RecommendationsResponse;
+  try {
+    data = await serverApiGet<RecommendationsResponse>(`/api/v1/public/basket/recommendations?date=${appTodayIso()}&limit=50`);
+  } catch {
+    return <ApiUnavailable title="Signals API unavailable" />;
+  }
   return (
     <section className="pageStack">
       <div className="sectionHeader">

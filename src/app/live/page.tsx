@@ -1,6 +1,6 @@
 import { MatchCenter } from "@/components/MatchCenter";
-import { todayIso } from "@/lib/api";
+import { appTodayIso } from "@/lib/time";
 
 export default function LivePage() {
-  return <MatchCenter date={todayIso()} />;
+  return <MatchCenter date={appTodayIso()} />;
 }
