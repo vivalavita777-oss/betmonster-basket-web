@@ -351,6 +351,18 @@ main {
   gap: 6px;
 }
 
+.playerListBlock {
+  display: grid;
+  gap: 6px;
+}
+
+.playerListBlock > strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .playerList span {
   padding: 5px 7px;
   border: 1px solid var(--line);
@@ -358,6 +370,20 @@ main {
   color: #c7d4e4;
   background: #07101d;
   font-size: 12px;
+}
+
+.textButton {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #13243a;
+  color: #f8fafc;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 10px;
+}
+
+.textButton:hover {
+  border-color: #7dd3fc;
 }
 
 .railCard {

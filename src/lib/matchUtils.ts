@@ -67,13 +67,15 @@ export function normalizePrematchMarkets(
   const itHome = marketBlock(source.it_home);
   const itAway = marketBlock(source.it_away);
   const teamTotals = asObject(source.team_totals);
+  const teamTotalHome = marketBlock(teamTotals.home);
+  const teamTotalAway = marketBlock(teamTotals.away);
 
-  const projectedMargin = modelProjection(models, "spread");
+  const projectedMargin = asNumber(spread.projected_margin) ?? modelProjection(models, "spread");
   const rows = [
-    buildSpreadMarket("spread", "Spread", asNumber(spread.home ?? spread.line), null, null, projectedMargin, "home", spread.available, spread.unavailable_reason),
-    buildMarket("total", "Total", asNumber(total.line), asNumber(total.odds_over), asNumber(total.odds_under), modelProjection(models, "total"), "OVER", "UNDER", total.available, total.unavailable_reason),
-    buildMarket("it_home", "Home team total", asNumber(teamTotals.home ?? itHome.line), asNumber(itHome.odds_over), asNumber(itHome.odds_under), modelProjection(models, "it_home"), "OVER", "UNDER", itHome.available, itHome.unavailable_reason),
-    buildMarket("it_away", "Away team total", asNumber(teamTotals.away ?? itAway.line), asNumber(itAway.odds_over), asNumber(itAway.odds_under), modelProjection(models, "it_away"), "OVER", "UNDER", itAway.available, itAway.unavailable_reason),
+    buildSpreadMarket("spread", "Spread", asNumber(spread.home_line ?? spread.home ?? spread.line), asNumber(spread.home_odds), asNumber(spread.away_odds), projectedMargin, "home", spread.available, spread.unavailable_reason),
+    buildMarket("total", "Total", asNumber(total.line), asNumber(total.odds_over), asNumber(total.odds_under), asNumber(total.projection) ?? modelProjection(models, "total"), "OVER", "UNDER", total.available, total.unavailable_reason),
+    buildMarket("it_home", "Home team total", asNumber(teamTotalHome.line ?? teamTotals.home ?? itHome.line), asNumber(teamTotalHome.odds_over ?? itHome.odds_over), asNumber(teamTotalHome.odds_under ?? itHome.odds_under), asNumber(teamTotalHome.projection) ?? modelProjection(models, "it_home"), "OVER", "UNDER", teamTotalHome.available ?? itHome.available, teamTotalHome.unavailable_reason ?? itHome.unavailable_reason),
+    buildMarket("it_away", "Away team total", asNumber(teamTotalAway.line ?? teamTotals.away ?? itAway.line), asNumber(teamTotalAway.odds_over ?? itAway.odds_over), asNumber(teamTotalAway.odds_under ?? itAway.odds_under), asNumber(teamTotalAway.projection) ?? modelProjection(models, "it_away"), "OVER", "UNDER", teamTotalAway.available ?? itAway.available, teamTotalAway.unavailable_reason ?? itAway.unavailable_reason),
   ];
   return rows;
 }

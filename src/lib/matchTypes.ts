@@ -39,8 +39,12 @@ export type ModelBlock = {
 
 export type MarketBlock = {
   line?: number | null;
+  home_line?: number | null;
+  away_line?: number | null;
   home?: number | null;
   away?: number | null;
+  projection?: number | null;
+  projected_margin?: number | null;
   odds_over?: number | null;
   odds_under?: number | null;
   over_odds?: number | null;
@@ -135,6 +139,9 @@ export type SignalItem = {
   line?: number | null;
   odds?: number | null;
   edge?: number | null;
+  public_signal_type?: string | null;
+  signal_rank?: number | null;
+  source?: string | null;
   status?: string | null;
   result_status?: string | null;
   profit_1u?: number | null;
@@ -143,9 +150,12 @@ export type SignalItem = {
 
 export type SignalResponse = {
   game_id?: string;
+  available?: boolean;
   count: number;
+  reason?: string | null;
   items: SignalItem[];
   summary?: { wins?: number; losses?: number; pushes?: number; profit_1u?: number } | null;
+  data_quality?: ApiObject | null;
 };
 
 export type PostgameResponse = {
@@ -182,6 +192,30 @@ export type FrozenPrematchResponse = {
   data_quality?: ApiObject | null;
   line_snapshot?: ApiObject | null;
   shot_markets?: ApiObject | null;
+};
+
+export type MatchAnalyticsResponse = {
+  version?: "match_analytics_v2" | string;
+  game_id?: string;
+  league?: string | null;
+  as_of?: string | null;
+  snapshot_state?: string | null;
+  calculation_source?: string | null;
+  calculation_revision?: string | null;
+  match?: ApiObject | null;
+  models?: Record<string, ModelBlock | ApiObject | null> | null;
+  markets?: {
+    main?: ApiObject | null;
+    periods?: ApiObject | null;
+    team_stats?: ApiObject | null;
+    shots?: ApiObject | null;
+  } | null;
+  team_profiles?: ApiObject | null;
+  player_profiles?: ApiObject[] | null;
+  player_props?: ApiObject[] | null;
+  period_profiles?: ApiObject | null;
+  lineups?: ApiObject | null;
+  data_quality?: ApiObject | null;
 };
 
 export type QuarterProfile = {

@@ -24,9 +24,9 @@ test("match page renders full frozen snapshot", async ({ page }) => {
   await expect(page.getByText("9642e5eb0a18").first()).toBeVisible();
   await expect(page.getByText("EXP").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Live Center" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Markets", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Team Form" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Shot Markets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Shots" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Result comparison" })).toBeVisible();
   await expect(page.getByRole("row", { name: /IT Away UNDER 102\.5/ }).last()).toBeVisible();
   await expect(page.getByText("POLLING STOPPED")).toBeVisible();
@@ -47,7 +47,7 @@ test("match page keeps optional live endpoint failure isolated", async ({ page }
   await page.route("**/api/backend/api/v1/public/basket/matches/302600684/live", (route) => route.abort());
   await page.goto("/match/302600684");
 
-  await expect(page.getByRole("heading", { name: "Prematch" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByText("Live data temporarily unavailable")).toBeVisible();
 });
 

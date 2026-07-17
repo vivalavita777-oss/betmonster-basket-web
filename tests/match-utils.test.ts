@@ -34,6 +34,21 @@ describe("Phase C match utilities", () => {
     expect(rows.find((row) => row.key === "it_away")).toMatchObject({ line: 80, projection: 78, pick: "UNDER" });
   });
 
+  it("normalizes analytics v2 main market blocks", () => {
+    const rows = normalizePrematchMarkets({
+      spread: { home_line: -4.5, away_line: 4.5, home_odds: 1.9, away_odds: 1.9, projected_margin: 8 },
+      total: { line: 170.5, odds_over: 1.91, odds_under: 1.89, projection: 172 },
+      team_totals: {
+        home: { line: 88.5, odds_over: 1.85, odds_under: 1.85, projection: 91 },
+        away: { line: 82.5, odds_over: 1.86, odds_under: 1.84, projection: 81 },
+      },
+    });
+
+    expect(rows.find((row) => row.key === "spread")).toMatchObject({ line: -4.5, edge: 3.5, pick: "HOME_COVER" });
+    expect(rows.find((row) => row.key === "total")).toMatchObject({ line: 170.5, projection: 172, pick: "OVER" });
+    expect(rows.find((row) => row.key === "it_away")).toMatchObject({ line: 82.5, projection: 81, pick: "UNDER" });
+  });
+
   it("normalizes live markets and derives away spread from home line", () => {
     const rows = normalizeLiveMarkets({
       live_market: {

@@ -29,6 +29,7 @@ type LiveMatchContextValue = {
   liveError: unknown;
   signals: SignalResponse;
   signalsError: unknown;
+  retrySignals: () => void;
   status: string | null;
   interval: number;
 };
@@ -80,9 +81,10 @@ export function LiveMatchProvider({
     liveError: liveState.error,
     signals: signalsState.data || initialSignals,
     signalsError: signalsState.error,
+    retrySignals: () => { void signalsState.mutate(); },
     status,
     interval,
-  }), [gameId, initialSignals, initialStatus, interval, live, liveState.error, signalsState.data, signalsState.error, status]);
+  }), [gameId, initialSignals, initialStatus, interval, live, liveState.error, signalsState, signalsState.data, signalsState.error, status]);
 
   return <LiveMatchContext.Provider value={value}>{children}</LiveMatchContext.Provider>;
 }
@@ -136,7 +138,7 @@ export function LiveMatchCenter() {
         <LiveThreePmCards live={live} signals={signals} sourceAgeSeconds={sourceAgeSeconds} />
       </section>
 
-      <SignalsPanel signals={signals} error={Boolean(signalsError)} />
+      <SignalsPanel />
     </>
   );
 }
@@ -321,15 +323,49 @@ function signalFor3pm(signals: SignalResponse, key: "home" | "away" | "total"): 
   });
 }
 
-function SignalsPanel({ signals, error }: { signals: SignalResponse; error: boolean }) {
+export function SignalSummaryRail({ settledSummary }: { settledSummary?: SignalResponse["summary"] | null }) {
+  const { signals, signalsError } = useLiveMatchState();
+  const currentSummary = signals.summary || { wins: 0, losses: 0, pushes: 0, profit_1u: 0 };
+  return (
+    <>
+      <div className="railCard">
+        <h3>Current public signals</h3>
+        {signalsError ? (
+          <div className="railRow"><span>Status</span><strong>Signals unavailable</strong></div>
+        ) : (
+          <>
+            <div className="railRow"><span>Count</span><strong>{signals.count || 0}</strong></div>
+            <div className="railRow"><span>Open/settled</span><strong>{currentSummary.wins || 0}/{currentSummary.losses || 0}</strong></div>
+            <div className="railRow"><span>Profit</span><strong>{formatNum(currentSummary.profit_1u, 2)}u</strong></div>
+          </>
+        )}
+      </div>
+      <div className="railCard">
+        <h3>Settled signal results</h3>
+        <div className="railRow"><span>Wins</span><strong>{settledSummary?.wins ?? 0}</strong></div>
+        <div className="railRow"><span>Losses</span><strong>{settledSummary?.losses ?? 0}</strong></div>
+        <div className="railRow"><span>Profit</span><strong>{formatNum(settledSummary?.profit_1u, 2)}u</strong></div>
+      </div>
+    </>
+  );
+}
+
+function SignalsPanel() {
+  const { signals, signalsError, retrySignals } = useLiveMatchState();
+  const error = Boolean(signalsError);
   return (
     <section className="panel" id="signals">
       <div className="panelHeader">
         <h2>Signals</h2>
         <StatusPill label={`${signals.count || 0} SIGNALS`} tone="green" />
       </div>
-      {error ? <div className="stateBox danger">Signals temporarily unavailable. Retrying...</div> : null}
-      {!signals.items.length ? <div className="emptyCard">No public signals for this match</div> : null}
+      {error ? (
+        <div className="stateBox danger">
+          <span>Signals temporarily unavailable</span>
+          <button type="button" className="textButton" onClick={retrySignals}>Retry</button>
+        </div>
+      ) : null}
+      {!error && !signals.items.length ? <div className="emptyCard">No public signals for this match</div> : null}
       <div className="signalGrid">
         {signals.items.map((signal) => (
           <div className="signalCard" key={signalKey(signal)}>
