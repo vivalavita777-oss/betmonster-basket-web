@@ -189,6 +189,7 @@ export type FrozenPrematchResponse = {
   markets?: ApiObject | null;
   models?: Record<string, ModelBlock | ApiObject | null> | null;
   analytics?: ApiObject | null;
+  analytics_v2?: ApiObject | null;
   data_quality?: ApiObject | null;
   line_snapshot?: ApiObject | null;
   shot_markets?: ApiObject | null;

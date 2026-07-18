@@ -147,7 +147,11 @@ export function MatchHeroScore({ match }: { match: MatchDetailResponse }) {
   const { live, status } = useLiveMatchState();
   const initialScore = match.score || { home: match.home_score, away: match.away_score };
   const dbScoreMissing = initialScore.home == null && initialScore.away == null;
-  const useLiveScore = Boolean(live.available && live.score && (!isFinishedStatus(status) || dbScoreMissing));
+  const useLiveScore = Boolean(
+    live.available
+    && live.score
+    && (isLiveStatus(live.status) || isFinishedStatus(live.status) || dbScoreMissing),
+  );
   const score = useLiveScore ? live.score : initialScore;
   const label = isFinishedStatus(status) ? "FINISHED" : useLiveScore ? "LIVE" : (status || "scheduled").toUpperCase();
 
@@ -177,6 +181,7 @@ export function LiveResultComparison({
   const [settledRecommendations, setSettledRecommendations] = useState<RecommendationItem[]>(ledgerItems);
   const [postgameFetched, setPostgameFetched] = useState(Boolean(initialPostgame.available));
   const [attemptCount, setAttemptCount] = useState(0);
+  const [settlementPendingGrace, setSettlementPendingGrace] = useState(false);
   const rows = buildResultComparison(frozenItems, settledRecommendations);
   const settlementComplete = isSettlementComplete(rows);
   const shouldRetrySettlement = isFinishedStatus(status) && !settlementComplete && attemptCount < MAX_SETTLEMENT_ATTEMPTS;
@@ -207,14 +212,22 @@ export function LiveResultComparison({
   }, [attemptCount, gameId, shouldRetrySettlement]);
 
   const displayRows = buildResultComparison(frozenItems, settledRecommendations);
+  useEffect(() => {
+    if (!settlementComplete || attemptCount === 0) return;
+    setSettlementPendingGrace(true);
+    const timeout = window.setTimeout(() => setSettlementPendingGrace(false), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [attemptCount, settlementComplete]);
+
   const badges = heuristicBadges(postgame);
+  const showPending = !settlementComplete || settlementPendingGrace;
   return (
     <section className="panel" id="result">
       <div className="panelHeader">
         <h2>Result comparison</h2>
         <div className="statusCluster">
           <StatusPill label={postgame.available ? "FINAL SCORE AVAILABLE" : "PENDING"} tone={postgame.available ? "green" : "neutral"} />
-          {!settlementComplete ? <StatusPill label="SETTLEMENT PENDING" tone="neutral" /> : <StatusPill label="SETTLED" tone="green" />}
+          {showPending ? <StatusPill label="SETTLEMENT PENDING" tone="neutral" /> : <StatusPill label="SETTLED" tone="green" />}
         </div>
       </div>
       <div className="resultGrid">
@@ -223,7 +236,7 @@ export function LiveResultComparison({
         <Metric label="Signals P/L" value={`${formatNum(postgame.signals_summary?.profit_1u, 2)}u`} />
         <Metric label="Settlement tries" value={String(attemptCount)} />
       </div>
-      {postgameFetched && !settlementComplete ? <div className="emptyCard">SETTLEMENT PENDING</div> : null}
+      {postgameFetched && showPending ? <div className="emptyCard">Waiting for settled recommendation rows.</div> : null}
       {postgame.best_bet_result ? (
         <div className="emptyCard">
           <div className="statusCluster">{badges.map((badge) => <StatusPill key={badge} label={badge} tone="purple" />)}</div>

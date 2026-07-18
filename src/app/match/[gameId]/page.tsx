@@ -6,6 +6,7 @@ import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
 import {
   formatNum,
+  formatPct,
   frozenBadgeLabel,
   frozenRecommendations,
   type RecommendationsResponse,
@@ -79,8 +80,9 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   const initialSignals = signalsResult.data;
   const liveSeed = initialLive(match);
   const frozenItems = frozenRecommendations(frozen);
-  const modelSource = analytics.models || frozen.models || prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) || {};
-  const marketSource = asObject(analytics.markets?.main || frozen.markets || prematch.market || match.market);
+  const displayAnalytics = selectDisplayAnalytics(match, analytics, frozen);
+  const modelSource = displayAnalytics.models || frozen.models || prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) || {};
+  const marketSource = asObject(displayAnalytics.markets?.main || frozen.markets || prematch.market || match.market);
   const endpointErrors = [
     ["Prematch", prematchResult.error],
     ["Postgame", postgameResult.error],
@@ -101,14 +103,14 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
       <section className="matchLayout">
         <div className="matchMain">
           {endpointErrors.map(([label, error]) => <EndpointNotice key={label} label={label || "Endpoint"} error={error || ""} />)}
-          <OverviewSection prematch={prematch} frozen={frozen} frozenItems={frozenItems} models={modelSource} analytics={analytics} />
+          <OverviewSection prematch={prematch} frozen={frozen} frozenItems={frozenItems} models={modelSource} analytics={displayAnalytics} />
           <LiveMatchCenter />
           <MainMarketsSection markets={marketSource} models={modelSource} />
-          <PeriodsSection analytics={analytics} prematch={prematch} frozen={frozen} />
-          <TeamStatsSection analytics={analytics} />
-          <ShotMarketsSection analytics={analytics} prematch={prematch} frozen={frozen} />
-          <TeamFormSection analytics={analytics} match={match} />
-          <PlayersSection analytics={analytics} prematch={prematch} />
+          <PeriodsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
+          <TeamStatsSection analytics={displayAnalytics} />
+          <ShotMarketsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
+          <TeamFormSection analytics={displayAnalytics} match={match} />
+          <PlayersSection analytics={displayAnalytics} prematch={prematch} />
           <section className="panel" id="recommendations">
             <div className="panelHeader">
               <h2>Recommendations</h2>
@@ -125,11 +127,11 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
         </div>
 
         <aside className="matchRail">
-          <RailCard title="Data Quality" rows={qualityRows(analytics.data_quality, match.data_quality, prematch.data_quality, frozen.data_quality)} />
+          <RailCard title="Data Quality" rows={qualityRows(mergeQuality(displayAnalytics.data_quality, initialSignals, frozen), match.data_quality, prematch.data_quality, frozen.data_quality)} />
           <RailCard title="Model State" rows={[
-            ["Source", analytics.calculation_source || frozen.calculation_source || prematch.calculation_source || match.calculation_source || "-"],
+            ["Source", displayAnalytics.calculation_source || frozen.calculation_source || prematch.calculation_source || match.calculation_source || "-"],
             ["Roster", frozen.roster_state || prematch.roster_state || match.roster_state || "-"],
-            ["Revision", frozen.revision || analytics.calculation_revision || frozen.calculation_revision || prematch.calculation_revision || match.calculation_revision || "-"],
+            ["Revision", frozen.revision || displayAnalytics.calculation_revision || frozen.calculation_revision || prematch.calculation_revision || match.calculation_revision || "-"],
           ]} />
           <SignalSummaryRail settledSummary={postgame.signals_summary} />
         </aside>
@@ -155,6 +157,27 @@ function initialLive(match: MatchDetailResponse): LiveResponse {
     score: match.score || { home: match.home_score, away: match.away_score },
     data_quality: { state: "client_live_fetch_pending" },
   };
+}
+
+function selectDisplayAnalytics(match: MatchDetailResponse, current: MatchAnalyticsResponse, frozen: FrozenPrematchResponse): MatchAnalyticsResponse {
+  const frozenAnalytics = asObject(frozen.analytics_v2 || frozen.analytics) as MatchAnalyticsResponse;
+  const status = String(match.status || "").toLowerCase();
+  const afterTipoff = ["live", "inprogress", "in_progress", "playing", "finished", "final", "closed"].includes(status);
+  if (afterTipoff) {
+    return Object.keys(frozenAnalytics).length ? { ...frozenAnalytics, data_quality: frozenAnalytics.data_quality || frozen.data_quality } : {
+      ...emptyAnalytics,
+      data_quality: { overall: "partial", sources: { frozen_snapshot: { status: frozen.available ? (frozen.partial ? "partial" : "frozen") : "missing" } }, missing_blocks: ["frozen_analytics_v2"] },
+    };
+  }
+  return Object.keys(asObject(current)).length ? current : (Object.keys(frozenAnalytics).length ? frozenAnalytics : current);
+}
+
+function mergeQuality(quality: ApiObject | null | undefined, signals: SignalResponse, frozen: FrozenPrematchResponse): ApiObject {
+  const base = asObject(quality);
+  const sources = { ...asObject(base.sources) };
+  sources.signals = { status: signals.available === false ? "error" : signals.count > 0 ? "ok" : "empty" };
+  sources.frozen_snapshot = { status: frozen.available ? (frozen.partial ? "partial" : "frozen") : "missing" };
+  return { ...base, sources };
 }
 
 function MatchHero({ match }: { match: MatchDetailResponse }) {
@@ -273,14 +296,19 @@ function TeamFormSection({ analytics, match }: { analytics: MatchAnalyticsRespon
 }
 
 function TeamCard({ side, name, profile }: { side: string; name: string; profile: ApiObject }) {
-  const windows = asObject(asObject(profile.windows).overall);
+  const allWindows = asObject(profile.windows);
+  const windows = asObject(allWindows.overall);
+  const homeAway = ["overall", "home", "away"].map((key) => [key, asObject(allWindows[key])] as const);
   const rows = ["last3", "last5", "last10", "season"].map((key) => [key, asObject(windows[key])] as const);
   return (
     <div className="teamCard">
       <div className="panelHeader"><h3>{name}</h3><span className="league">{side}</span></div>
+      <div className="statusCluster">
+        {homeAway.map(([key, value]) => <StatusPill key={key} label={`${key.toUpperCase()} ${formatNum(asNumber(asObject(value.last5).games), 0)}`} tone={key === "overall" ? "green" : "neutral"} />)}
+      </div>
       <div className="tableScroller">
         <table className="comparisonTable compactTable">
-          <thead><tr><th>Window</th><th>PF</th><th>PA</th><th>Total</th><th>Margin</th><th>Win%</th><th>Sample</th></tr></thead>
+          <thead><tr><th>Window</th><th>PF</th><th>PA</th><th>Total</th><th>Margin</th><th>Win%</th><th>SD</th><th>Sample</th></tr></thead>
           <tbody>
             {rows.map(([key, row]) => (
               <tr key={key}>
@@ -289,7 +317,8 @@ function TeamCard({ side, name, profile }: { side: string; name: string; profile
                 <td>{formatNum(asNumber(row.opp_points), 1)}</td>
                 <td>{formatNum(asNumber(row.total), 1)}</td>
                 <td>{formatNum(asNumber(row.margin), 1)}</td>
-                <td>{formatNum(asNumber(row.win_rate), 1)}</td>
+                <td>{formatPct(asNumber(row.win_rate))}</td>
+                <td>{formatNum(asNumber(row.total_sd), 1)}</td>
                 <td>{formatNum(asNumber(row.games), 0)}</td>
               </tr>
             ))}
@@ -309,34 +338,45 @@ function TeamCard({ side, name, profile }: { side: string; name: string; profile
 function PeriodsSection({ analytics, prematch, frozen }: { analytics: MatchAnalyticsResponse; prematch: PrematchResponse; frozen: FrozenPrematchResponse }) {
   const periodMarkets = asObject(analytics.markets?.periods);
   const periodProfiles = asObject(analytics.period_profiles);
-  const rows = Object.keys(periodMarkets).length ? Object.entries(periodMarkets).map(([key, raw]) => {
+  const periods = Object.keys(periodMarkets).length ? Object.entries(periodMarkets).map(([key, raw]) => {
     const block = asObject(raw);
-    const total = asObject(block.total);
     return {
       label: key.toUpperCase(),
-      line: asNumber(total.line),
-      projection: asNumber(total.projection),
-      edge: asNumber(total.edge),
-      status: String(total.status || "line_only"),
-      sample: asNumber(asObject(periodProfiles[key]).sample),
+      block,
+      profile: asObject(periodProfiles[key]),
     };
-  }) : getQuarterProfiles(frozen, prematch).map((row) => ({ ...row, status: "available", sample: row.sampleSize }));
+  }) : getQuarterProfiles(frozen, prematch).map((row) => ({
+    label: row.label,
+    block: asObject({ total: { line: row.line, projection: row.projection, edge: row.edge, status: "available" } }),
+    profile: asObject({ sample: row.sampleSize }),
+  }));
   return (
     <section className="panel" id="periods">
       <div className="panelHeader"><h2>Periods</h2><StatusPill label="Q1 / H1" tone="purple" /></div>
-      {!rows.length ? <div className="emptyCard">Period markets unavailable</div> : null}
+      {!periods.length ? <div className="emptyCard">Period markets unavailable</div> : null}
       <div className="quarterGrid">
-        {rows.map((row) => (
-          <div className="metricCard" key={row.label}>
-            <span>{row.label}</span>
-            <strong>{formatNum(row.projection, 1)}</strong>
-            <small>line {formatNum(row.line, 1)} · edge {formatNum(row.edge, 1)}</small>
-            <small>{row.status} · sample {formatNum(row.sample, 0)}</small>
+        {periods.map((period) => (
+          <div className="metricCard" key={period.label}>
+            <span>{period.label}</span>
+            <PeriodMarketLine label="Winner" block={asObject(period.block.winner)} winner />
+            <PeriodMarketLine label="Spread" block={asObject(period.block.spread)} />
+            <PeriodMarketLine label="Total" block={asObject(period.block.total)} />
+            <PeriodMarketLine label="IT Home" block={asObject(asObject(period.block.team_totals).home)} />
+            <PeriodMarketLine label="IT Away" block={asObject(asObject(period.block.team_totals).away)} />
+            <small>sample {formatNum(asNumber(period.profile.sample), 0)} · {String(period.profile.projection_source || "line_only")}</small>
           </div>
         ))}
       </div>
     </section>
   );
+}
+
+function PeriodMarketLine({ label, block, winner = false }: { label: string; block: ApiObject; winner?: boolean }) {
+  if (winner) {
+    return <small>{label}: W1 {formatNum(asNumber(block.home_odds), 2)} / W2 {formatNum(asNumber(block.away_odds), 2)} · {String(block.status || "missing")}</small>;
+  }
+  const line = asNumber(block.line ?? block.home_line);
+  return <small>{label}: line {formatNum(line, 1)} · proj {formatNum(asNumber(block.projection), 1)} · edge {formatNum(asNumber(block.edge), 1)} · {String(block.pick || block.status || "line_only")}</small>;
 }
 
 function TeamStatsSection({ analytics }: { analytics: MatchAnalyticsResponse }) {
@@ -410,13 +450,13 @@ function PlayersSection({ analytics, prematch }: { analytics: MatchAnalyticsResp
       </div>
       <div className="tableScroller">
         <table className="comparisonTable">
-          <thead><tr><th>Prop</th><th>Market</th><th>Line</th><th>Odds</th><th>Projection</th><th>Edge</th><th>Lean</th></tr></thead>
+          <thead><tr><th>Prop</th><th>Market</th><th>Pick</th><th>Line</th><th>Odds</th><th>Projection</th><th>Edge</th><th>Status</th><th>Source</th></tr></thead>
           <tbody>
             {props.slice(0, 20).map((raw, index) => {
               const prop = asObject(raw);
-              return <tr key={`${String(prop.player)}-${String(prop.market)}-${index}`}><td>{String(prop.player || "-")}</td><td>{String(prop.market || "-")}</td><td>{formatNum(asNumber(prop.line), 1)}</td><td>O {formatNum(asNumber(prop.odds_over), 2)} / U {formatNum(asNumber(prop.odds_under), 2)}</td><td>{formatNum(asNumber(prop.projection), 1)}</td><td>{formatNum(asNumber(prop.edge), 1)}</td><td>{String(prop.confidence || prop.pick || "WATCH")}</td></tr>;
+              return <tr key={`${String(prop.player)}-${String(prop.market)}-${index}`}><td>{String(prop.player || "-")}</td><td>{String(prop.market || "-")}</td><td>{String(prop.pick || "-")}</td><td>{formatNum(asNumber(prop.line), 1)}</td><td>O {formatNum(asNumber(prop.odds_over), 2)} / U {formatNum(asNumber(prop.odds_under), 2)}</td><td>{formatNum(asNumber(prop.projection), 1)}</td><td>{formatNum(asNumber(prop.edge), 1)}</td><td>{String(prop.confidence || "LINE_ONLY")}</td><td>{String(prop.projection_source || "-")}</td></tr>;
             })}
-            {!props.length ? <tr><td colSpan={7}>Player props unavailable.</td></tr> : null}
+            {!props.length ? <tr><td colSpan={9}>Player props unavailable.</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -481,7 +521,8 @@ function qualityRows(...sources: Array<ApiObject | null | undefined>): Array<[st
 
 function sourceStatus(value: unknown, detailKey?: string): string {
   const source = asObject(value);
-  const status = String(source.status || "-").toUpperCase();
+  const rawStatus = String(source.status || "-").toLowerCase();
+  const status = ({ separate_endpoint: "OK", ok: "OK", empty: "EMPTY", error: "ERROR", frozen: "FROZEN", partial: "PARTIAL", missing: "MISSING" } as Record<string, string>)[rawStatus] || rawStatus.toUpperCase();
   if (!detailKey) return status;
   const detail = source[detailKey];
   return detail == null ? status : `${status} ${String(detail).toUpperCase()}`;

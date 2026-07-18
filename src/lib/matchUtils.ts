@@ -308,7 +308,8 @@ export function isFinishedStatus(status?: string | null): boolean {
 }
 
 export function effectiveMatchStatus(initialStatus?: string | null, liveStatus?: string | null): string | null {
-  if (isFinishedStatus(initialStatus)) return "finished";
   if (isFinishedStatus(liveStatus)) return "finished";
+  if (isLiveStatus(liveStatus)) return liveStatus || null;
+  if (isFinishedStatus(initialStatus)) return "finished";
   return liveStatus || initialStatus || null;
 }
