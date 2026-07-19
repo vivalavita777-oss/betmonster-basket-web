@@ -1,0 +1,29 @@
+name: frontend-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Unit tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Install Playwright
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Playwright mocked smoke
+        run: pnpm exec playwright test tests/e2e/pwa-shell.spec.ts --project=chromium --grep "API unavailable|offline page renders"

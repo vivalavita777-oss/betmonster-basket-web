@@ -81,8 +81,9 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   const liveSeed = initialLive(match);
   const frozenItems = frozenRecommendations(frozen);
   const displayAnalytics = selectDisplayAnalytics(match, analytics, frozen);
-  const modelSource = displayAnalytics.models || frozen.models || prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) || {};
-  const marketSource = asObject(displayAnalytics.markets?.main || frozen.markets || prematch.market || match.market);
+  const afterTipoff = isAfterTipoffStatus(match.status);
+  const modelSource = displayAnalytics.models || frozen.models || (!afterTipoff ? prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) : {}) || {};
+  const marketSource = asObject(displayAnalytics.markets?.main || frozen.markets || (!afterTipoff ? prematch.market || match.market : {}));
   const endpointErrors = [
     ["Prematch", prematchResult.error],
     ["Postgame", postgameResult.error],
@@ -103,7 +104,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
       <section className="matchLayout">
         <div className="matchMain">
           {endpointErrors.map(([label, error]) => <EndpointNotice key={label} label={label || "Endpoint"} error={error || ""} />)}
-          <OverviewSection prematch={prematch} frozen={frozen} frozenItems={frozenItems} models={modelSource} analytics={displayAnalytics} />
+          <OverviewSection prematch={prematch} frozen={frozen} frozenItems={frozenItems} models={modelSource} analytics={displayAnalytics} matchStatus={match.status} />
           <LiveMatchCenter />
           <MainMarketsSection markets={marketSource} models={modelSource} />
           <PeriodsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
@@ -161,8 +162,7 @@ function initialLive(match: MatchDetailResponse): LiveResponse {
 
 function selectDisplayAnalytics(match: MatchDetailResponse, current: MatchAnalyticsResponse, frozen: FrozenPrematchResponse): MatchAnalyticsResponse {
   const frozenAnalytics = asObject(frozen.analytics_v2 || frozen.analytics) as MatchAnalyticsResponse;
-  const status = String(match.status || "").toLowerCase();
-  const afterTipoff = ["live", "inprogress", "in_progress", "playing", "finished", "final", "closed"].includes(status);
+  const afterTipoff = isAfterTipoffStatus(match.status);
   if (afterTipoff) {
     return Object.keys(frozenAnalytics).length ? { ...frozenAnalytics, data_quality: frozenAnalytics.data_quality || frozen.data_quality } : {
       ...emptyAnalytics,
@@ -170,6 +170,10 @@ function selectDisplayAnalytics(match: MatchDetailResponse, current: MatchAnalyt
     };
   }
   return Object.keys(asObject(current)).length ? current : (Object.keys(frozenAnalytics).length ? frozenAnalytics : current);
+}
+
+function isAfterTipoffStatus(status?: string | null): boolean {
+  return ["live", "inprogress", "in_progress", "playing", "finished", "final", "closed"].includes(String(status || "").toLowerCase());
 }
 
 function mergeQuality(quality: ApiObject | null | undefined, signals: SignalResponse, frozen: FrozenPrematchResponse): ApiObject {
@@ -203,23 +207,29 @@ function OverviewSection({
   frozenItems,
   models,
   analytics,
+  matchStatus,
 }: {
   prematch: PrematchResponse;
   frozen: FrozenPrematchResponse;
   frozenItems: RecommendationsResponse["items"];
   models: FrozenPrematchResponse["models"];
   analytics: MatchAnalyticsResponse;
+  matchStatus?: string | null;
 }) {
+  const legacyFrozen = frozen.available && frozen.analytics_v2_available === false;
   return (
     <section className="panel" id="overview">
       <div className="panelHeader">
         <h2>Overview</h2>
-        <StatusPill label={frozenBadgeLabel(frozen)} tone={frozen.partial ? "purple" : "green"} />
+        <StatusPill label={frozenBadgeLabel(frozen, matchStatus)} tone={frozen.partial ? "purple" : "green"} />
       </div>
+      {legacyFrozen ? <div className="stateBox">Historical advanced analytics unavailable.</div> : null}
       <div className="metricGrid compactMetrics">
         <Metric label="Snapshot" value={frozen.snapshot_at || "-"} />
         <Metric label="Revision" value={frozen.revision || prematch.calculation_revision || "-"} />
         <Metric label="Source" value={(analytics.calculation_source || frozen.calculation_source || prematch.calculation_source || "-").toUpperCase()} />
+        <Metric label="Calculation" value={analytics.calculation_revision || frozen.calculation_revision || prematch.calculation_revision || "-"} />
+        <Metric label="Analytics hash" value={frozen.analytics_v2_hash || "-"} />
         <Metric label="Roster" value={frozen.roster_state || prematch.roster_state || "-"} />
       </div>
       <ModelBoard models={models} />

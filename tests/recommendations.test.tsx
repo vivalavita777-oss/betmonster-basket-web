@@ -64,7 +64,8 @@ describe("recommendation rendering", () => {
     };
 
     expect(frozenRecommendations(frozen)).toHaveLength(1);
-    expect(frozenBadgeLabel(frozen)).toBe("FROZEN SNAPSHOT");
+    expect(frozenBadgeLabel(frozen, "finished")).toBe("FROZEN PREMATCH");
+    expect(frozenBadgeLabel(frozen, "scheduled")).toBe("CURRENT PREMATCH");
   });
 
   it("normalizes fallback_ledger frozen recommendations", () => {
@@ -76,7 +77,7 @@ describe("recommendation rendering", () => {
     };
 
     expect(frozenRecommendations(frozen)[0].market).toBe("Spread Home");
-    expect(frozenBadgeLabel(frozen)).toBe("PARTIAL LEDGER FALLBACK");
+    expect(frozenBadgeLabel(frozen, "finished")).toBe("FROZEN PARTIAL");
   });
 
   it("renders API unavailable state", () => {

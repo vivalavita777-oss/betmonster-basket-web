@@ -18,9 +18,9 @@ test("offline page renders", async ({ page }) => {
   await expect(page.getByText(/OFFLINE/)).toBeVisible();
 });
 
-test("match page renders full frozen snapshot", async ({ page }) => {
+test("match page renders legacy frozen snapshot as partial", async ({ page }) => {
   await page.goto("/match/302600684");
-  await expect(page.getByText("FROZEN SNAPSHOT")).toBeVisible();
+  await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
   await expect(page.getByText("9642e5eb0a18").first()).toBeVisible();
   await expect(page.getByText("EXP").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Live Center" })).toBeVisible();
@@ -34,7 +34,7 @@ test("match page renders full frozen snapshot", async ({ page }) => {
 
 test("match page renders partial frozen fallback", async ({ page }) => {
   await page.goto("/match/302601098");
-  await expect(page.getByText("PARTIAL LEDGER FALLBACK")).toBeVisible();
+  await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
 });
 
 test("match center shows API unavailable state", async ({ page }) => {

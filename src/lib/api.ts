@@ -94,10 +94,13 @@ export function frozenRecommendations(frozen: FrozenPrematchResponse): Recommend
   return frozen.items ?? frozen.site_recommendations?.top_candidates ?? [];
 }
 
-export function frozenBadgeLabel(frozen: FrozenPrematchResponse): string {
-  return frozen.source === "snapshot_store" && !frozen.partial
-    ? "FROZEN SNAPSHOT"
-    : "PARTIAL LEDGER FALLBACK";
+export function frozenBadgeLabel(frozen: FrozenPrematchResponse, matchStatus?: string | null): string {
+  const status = String(matchStatus || "").toLowerCase();
+  const afterTipoff = ["live", "inprogress", "in_progress", "playing", "finished", "final", "closed"].includes(status);
+  if (!afterTipoff) return "CURRENT PREMATCH";
+  if (frozen.source === "snapshot_store" && frozen.analytics_v2_available !== false && !frozen.partial) return "FROZEN PREMATCH";
+  if (frozen.source === "snapshot_store") return "FROZEN PARTIAL";
+  return "FROZEN PARTIAL";
 }
 
 export function formatPct(value: number | null | undefined): string {
