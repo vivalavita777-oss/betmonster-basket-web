@@ -1,5 +1,7 @@
 # Basket Monster Web/PWA
 
+[![frontend-ci](https://github.com/vivalavita777-oss/betmonster-basket-web/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/vivalavita777-oss/betmonster-basket-web/actions/workflows/frontend-ci.yml)
+
 Responsive Next.js shell for the Basket Monster public basketball app.
 
 ## Start

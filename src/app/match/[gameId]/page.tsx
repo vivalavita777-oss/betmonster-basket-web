@@ -217,6 +217,7 @@ function OverviewSection({
   matchStatus?: string | null;
 }) {
   const legacyFrozen = frozen.available && frozen.analytics_v2_available === false;
+  const frozenMetaItem = frozenItems[0];
   return (
     <section className="panel" id="overview">
       <div className="panelHeader">
@@ -226,9 +227,9 @@ function OverviewSection({
       {legacyFrozen ? <div className="stateBox">Historical advanced analytics unavailable.</div> : null}
       <div className="metricGrid compactMetrics">
         <Metric label="Snapshot" value={frozen.snapshot_at || "-"} />
-        <Metric label="Revision" value={frozen.revision || prematch.calculation_revision || "-"} />
-        <Metric label="Source" value={(analytics.calculation_source || frozen.calculation_source || prematch.calculation_source || "-").toUpperCase()} />
-        <Metric label="Calculation" value={analytics.calculation_revision || frozen.calculation_revision || prematch.calculation_revision || "-"} />
+        <Metric label="Revision" value={frozen.revision || frozen.calculation_revision || frozenMetaItem?.calculation_revision || prematch.calculation_revision || "-"} />
+        <Metric label="Source" value={(analytics.calculation_source || frozen.calculation_source || frozenMetaItem?.calculation_source || prematch.calculation_source || "-").toUpperCase()} />
+        <Metric label="Calculation" value={analytics.calculation_revision || frozen.calculation_revision || frozenMetaItem?.calculation_revision || prematch.calculation_revision || "-"} />
         <Metric label="Analytics hash" value={frozen.analytics_v2_hash || "-"} />
         <Metric label="Roster" value={frozen.roster_state || prematch.roster_state || "-"} />
       </div>
