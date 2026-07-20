@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { ApiUnavailable } from "@/components/ApiUnavailable";
 import { LiveMatchCenter, LiveMatchProvider, LiveResultComparison, MatchHeroScore, SignalSummaryRail } from "@/components/match/LiveMatchCenter";
+import { MatchJsonDownload } from "@/components/match/MatchJsonDownload";
 import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
 import {
@@ -94,6 +95,22 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
     ["Analytics", analyticsResult.error],
     ["Signals", signalsResult.error],
   ].filter(([, error]) => error);
+  const jsonPayload: ApiObject = {
+    exported_at: new Date().toISOString(),
+    game_id: match.game_id,
+    league: match.league,
+    game_date: match.game_date,
+    status: match.status,
+    home_team: match.home_team,
+    away_team: match.away_team,
+    match,
+    prematch,
+    postgame,
+    recommendations: recs,
+    frozen_prematch: frozen,
+    analytics: displayAnalytics,
+    signals: initialSignals,
+  };
 
   return (
     <LiveMatchProvider gameId={gameId} initialLive={liveSeed} initialSignals={initialSignals} initialStatus={match.status}>
@@ -101,6 +118,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
       <MatchHero match={match} />
       <nav className="tabsRow stickyTabs" aria-label="Match sections">
         {visibleTabs.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}
+        <MatchJsonDownload payload={jsonPayload} />
       </nav>
 
       <section className="matchLayout">
@@ -421,18 +439,18 @@ function TeamRecentGamesTable({ title, games }: { title: string; games: ApiObjec
                 <td>{formatSigned(asNumber(game.handicap))} · {String(game.spread_result || "-")}</td>
                 <td>{formatNum(asNumber(game.team_total_line), 1)} · {String(game.team_total_result || "-")}</td>
                 <td>{formatNum(asNumber(game.total_line), 1)} · {String(game.total_result || "-")}</td>
-                <td>{periodResult(game.q1_win)}</td>
-                <td>{periodResult(game.h1_win)}</td>
-                <td>{periodResult(game.q2_win)}</td>
-                <td>{periodResult(game.q3_win)}</td>
-                <td>{periodResult(game.q4_win)}</td>
-                <td>{periodResult(game.h2_win)}</td>
+                <td className="periodCell">{periodLabel(game.q1_label, game.q1_win)}</td>
+                <td className="periodCell">{periodLabel(game.h1_label, game.h1_win)}</td>
+                <td className="periodCell">{periodLabel(game.q2_label, game.q2_win)}</td>
+                <td className="periodCell">{periodLabel(game.q3_label, game.q3_win)}</td>
+                <td className="periodCell">{periodLabel(game.q4_label, game.q4_win)}</td>
+                <td className="periodCell">{periodLabel(game.h2_label, game.h2_win)}</td>
                 <td>{formatNum(asNumber(game.two_pm), 0)}/{formatNum(asNumber(game.two_pa), 0)}</td>
                 <td>{formatNum(asNumber(game.fg3m), 0)}/{formatNum(asNumber(game.fg3a), 0)}</td>
-                <td>{formatNum(asNumber(game.reb), 0)}</td>
-                <td>{formatNum(asNumber(game.ast), 0)}</td>
-                <td>{formatNum(asNumber(game.tov), 0)}</td>
-                <td>{formatNum(asNumber(game.fouls), 0)}</td>
+                <td>{statPair(game.reb_pair, game.reb)}</td>
+                <td>{statPair(game.ast_pair, game.ast)}</td>
+                <td>{statPair(game.tov_pair, game.tov)}</td>
+                <td>{statPair(game.fouls_pair, game.fouls)}</td>
               </tr>
             ))}
             {!games.length ? <tr><td colSpan={20}>Recent game history unavailable.</td></tr> : null}
@@ -481,10 +499,23 @@ function PeriodsSection({ analytics, prematch, frozen }: { analytics: MatchAnaly
 
 function PeriodMarketLine({ label, block, winner = false }: { label: string; block: ApiObject; winner?: boolean }) {
   if (winner) {
-    return <small>{label}: W1 {formatNum(asNumber(block.home_odds), 2)} / W2 {formatNum(asNumber(block.away_odds), 2)} · {String(block.status || "missing")}</small>;
+    return (
+      <div className="periodMarketRow">
+        <span>{label}</span>
+        <strong>W1 {formatNum(asNumber(block.home_odds), 2)} / W2 {formatNum(asNumber(block.away_odds), 2)}</strong>
+        <small>{String(block.status || "missing")}</small>
+      </div>
+    );
   }
   const line = asNumber(block.line ?? block.home_line);
-  return <small>{label}: line {formatNum(line, 1)} · proj {formatNum(asNumber(block.projection), 1)} · edge {formatNum(asNumber(block.edge), 1)} · {String(block.pick || block.status || "line_only")}</small>;
+  const status = String(block.pick || block.status || "line_only").replace(/_/g, " ").toUpperCase();
+  return (
+    <div className="periodMarketRow">
+      <span>{label}</span>
+      <strong>{formatNum(line, 1)}</strong>
+      <small>proj {formatNum(asNumber(block.projection), 1)} · edge {formatNum(asNumber(block.edge), 1)} · {status}</small>
+    </div>
+  );
 }
 
 function TeamStatsSection({ analytics }: { analytics: MatchAnalyticsResponse }) {
@@ -702,6 +733,16 @@ function periodResult(value: unknown): string {
   if (String(value).toLowerCase() === "loss") return "LOSS";
   if (String(value).toLowerCase() === "push") return "PUSH";
   return "-";
+}
+
+function periodLabel(label: unknown, fallback: unknown): string {
+  if (label) return String(label);
+  return periodResult(fallback);
+}
+
+function statPair(pair: unknown, fallback: unknown): string {
+  if (pair) return String(pair);
+  return formatNum(asNumber(fallback), 0);
 }
 
 function shortDate(value: unknown): string {
