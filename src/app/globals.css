@@ -391,6 +391,35 @@ main {
   margin-top: 12px;
 }
 
+.recommendationGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.recCard {
+  border-color: #2b5874;
+  background: #0a1b2a;
+}
+
+.rec-play {
+  border-color: #4ade80;
+  background: #0d2219;
+}
+
+.rec-watch,
+.conflictRow {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.riskText {
+  color: #fca5a5 !important;
+}
+
+.matrixTable td {
+  vertical-align: top;
+}
+
 .marketMini strong,
 .shotCard strong,
 .signalCard strong {
@@ -769,6 +798,7 @@ th {
   .marketGrid,
   .mainMarketTop,
   .metaGrid,
+  .recommendationGrid,
   .totalsGrid,
   .marketStrip,
   .shotGrid,
@@ -815,6 +845,7 @@ th {
   .marketGrid,
   .mainMarketTop,
   .metaGrid,
+  .recommendationGrid,
   .totalsGrid,
   .marketStrip,
   .teamGrid,

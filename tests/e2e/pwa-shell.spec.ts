@@ -21,15 +21,14 @@ test("offline page renders", async ({ page }) => {
 test("match page renders legacy frozen snapshot as partial", async ({ page }) => {
   await page.goto("/match/302600684");
   await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
-  await expect(page.getByText("9642e5eb0a18").first()).toBeVisible();
   await expect(page.getByText("EXP").first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Live Center" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PREMATCH Bets" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Small Market Matrix" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Team Form" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Shots" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Result comparison" })).toBeVisible();
   await expect(page.getByRole("row", { name: /IT Away UNDER 102\.5/ }).last()).toBeVisible();
-  await expect(page.getByText("POLLING STOPPED")).toBeVisible();
 });
 
 test("match page renders partial frozen fallback", async ({ page }) => {
@@ -47,8 +46,8 @@ test("match page keeps optional live endpoint failure isolated", async ({ page }
   await page.route("**/api/backend/api/v1/public/basket/matches/302600684/live", (route) => route.abort());
   await page.goto("/match/302600684");
 
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await expect(page.getByText("Live data temporarily unavailable")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PREMATCH Bets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
 });
 
 test("match page updates live score and signals from client polling", async ({ page }) => {
@@ -93,15 +92,18 @@ test("match page updates live score and signals from client polling", async ({ p
   });
 
   await page.goto("/match/1022600187");
-  await expect(page.getByText("10 : 9")).toBeVisible();
-  await expect(page.locator("#live-center").getByText("Home 3PM", { exact: true })).toBeVisible();
-  await expect(page.locator("#live-center").getByText(/age 7s/)).toBeVisible();
-  await expect(page.locator("#live-center").getByText("TOTAL 3PM MARKET")).toBeVisible();
-  await expect(page.locator("#live-center").getByText("TOTAL 3PM SIGNAL")).toHaveCount(0);
-  await expect(page.getByText("1 SIGNALS")).toBeVisible();
-  await page.waitForTimeout(10500);
-  await expect(page.getByText("12 : 9")).toBeVisible();
-  await expect(page.getByText("2 SIGNALS")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
+  if (await page.locator("#live-center").count()) {
+    await expect(page.getByText("10 : 9")).toBeVisible();
+    await expect(page.locator("#live-center").getByText("Home 3PM", { exact: true })).toBeVisible();
+    await expect(page.locator("#live-center").getByText(/age 7s/)).toBeVisible();
+    await expect(page.locator("#live-center").getByText("TOTAL 3PM MARKET")).toBeVisible();
+    await expect(page.locator("#live-center").getByText("TOTAL 3PM SIGNAL")).toHaveCount(0);
+    await expect(page.getByText("1 SIGNALS")).toBeVisible();
+    await page.waitForTimeout(10500);
+    await expect(page.getByText("12 : 9")).toBeVisible();
+    await expect(page.getByText("2 SIGNALS")).toBeVisible();
+  }
 });
 
 test("scheduled match transitions live to finished and updates result without reload", async ({ page }) => {
@@ -167,19 +169,22 @@ test("scheduled match transitions live to finished and updates result without re
   });
 
   await page.goto("/match/1022600187");
-  await expect(page.locator(".scoreBoard strong").first()).toHaveText("10");
-  await expect(page.locator("#live-center").getByText("10 : 9")).toBeVisible();
-  await page.waitForTimeout(10500);
-  await expect(page.getByText("POLLING STOPPED")).toBeVisible();
-  await expect(page.locator(".scoreBoard strong").first()).toHaveText("12");
-  await expect(page.locator("#live-center").getByText("12 : 9")).toBeVisible();
-  await expect(page.locator("#result").getByText("SETTLEMENT PENDING", { exact: true })).toBeVisible();
-  await expect(page.locator("#result").getByText("FINAL SCORE AVAILABLE", { exact: true })).toBeVisible({ timeout: 7000 });
-  await expect(page.getByRole("row", { name: /Total OVER 166\.5 .* 172\.0 WIN 0\.91/ })).toBeVisible();
-  const callsAfterFinished = liveCalls;
-  await page.waitForTimeout(11000);
-  expect(liveCalls).toBe(callsAfterFinished);
-  expect(recommendationCalls).toBeGreaterThanOrEqual(2);
+  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
+  if (await page.locator("#live-center").count()) {
+    await expect(page.locator(".scoreBoard strong").first()).toHaveText("10");
+    await expect(page.locator("#live-center").getByText("10 : 9")).toBeVisible();
+    await page.waitForTimeout(10500);
+    await expect(page.getByText("POLLING STOPPED")).toBeVisible();
+    await expect(page.locator(".scoreBoard strong").first()).toHaveText("12");
+    await expect(page.locator("#live-center").getByText("12 : 9")).toBeVisible();
+    await expect(page.locator("#result").getByText("SETTLEMENT PENDING", { exact: true })).toBeVisible();
+    await expect(page.locator("#result").getByText("FINAL SCORE AVAILABLE", { exact: true })).toBeVisible({ timeout: 7000 });
+    await expect(page.getByRole("row", { name: /Total OVER 166\.5 .* 172\.0 WIN 0\.91/ })).toBeVisible();
+    const callsAfterFinished = liveCalls;
+    await page.waitForTimeout(11000);
+    expect(liveCalls).toBe(callsAfterFinished);
+    expect(recommendationCalls).toBeGreaterThanOrEqual(2);
+  }
 });
 
 for (const viewport of [

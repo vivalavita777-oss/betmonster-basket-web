@@ -96,6 +96,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
     ["Signals", signalsResult.error],
   ].filter(([, error]) => error);
   const jsonPayload: ApiObject = {
+    schema_version: "match_analysis_export_v2",
     exported_at: new Date().toISOString(),
     game_id: match.game_id,
     league: match.league,
@@ -104,12 +105,43 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
     home_team: match.home_team,
     away_team: match.away_team,
     match,
-    prematch,
-    postgame,
-    recommendations: recs,
+    current_prematch: prematch,
+    postgame_latest: postgame,
+    recommendations_latest: recs,
     frozen_prematch: frozen,
     analytics: displayAnalytics,
-    signals: initialSignals,
+    signals_latest: initialSignals,
+    live_latest: liveSeed,
+    projection_matrix: displayAnalytics.projection_matrix,
+    hit_rates: displayAnalytics.hit_rates,
+    recommendation_candidates: displayAnalytics.recommendation_candidates,
+    published_recommendations: recs.items,
+    source_conflicts: displayAnalytics.source_conflicts,
+    roster_integrity: displayAnalytics.roster_integrity,
+    source_timestamps: {
+      calculated_at: displayAnalytics.calculated_at,
+      roster_as_of: displayAnalytics.roster_as_of,
+      tipoff_at: displayAnalytics.tipoff_at,
+      frozen_snapshot_at: frozen.snapshot_at,
+    },
+    ai_context: {
+      purpose: "Basket Monster match center evaluation",
+      note: "Full export contains current client state and all match-page API sources available at render time.",
+    },
+  };
+  const compactJsonPayload: ApiObject = {
+    schema_version: "match_analysis_export_v2_compact",
+    exported_at: new Date().toISOString(),
+    game_id: match.game_id,
+    league: match.league,
+    status: match.status,
+    teams: { home: match.home_team, away: match.away_team },
+    projection_matrix: displayAnalytics.projection_matrix,
+    recommendation_candidates: displayAnalytics.recommendation_candidates,
+    published_recommendations: recs.items,
+    source_conflicts: displayAnalytics.source_conflicts,
+    roster_integrity: displayAnalytics.roster_integrity,
+    data_quality: displayAnalytics.data_quality,
   };
 
   return (
@@ -118,14 +150,16 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
       <MatchHero match={match} />
       <nav className="tabsRow stickyTabs" aria-label="Match sections">
         {visibleTabs.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}
-        <MatchJsonDownload payload={jsonPayload} />
+        <MatchJsonDownload payload={jsonPayload} compactPayload={compactJsonPayload} />
       </nav>
 
       <section className="matchLayout">
         <div className="matchMain">
           {endpointErrors.map(([label, error]) => <EndpointNotice key={label} label={label || "Endpoint"} error={error || ""} />)}
           {liveVisible ? <LiveMatchCenter /> : null}
+          <TopRecommendationsSection analytics={displayAnalytics} recs={recs} />
           <MainMarketsSection markets={marketSource} models={modelSource} />
+          <ProjectionMatrixSection analytics={displayAnalytics} />
           <PeriodsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
           <TeamStatsSection analytics={displayAnalytics} />
           <ShotMarketsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
@@ -295,6 +329,87 @@ function ModelBoard({ models }: { models: FrozenPrematchResponse["models"] }) {
         );
       })}
     </div>
+  );
+}
+
+function TopRecommendationsSection({ analytics, recs }: { analytics: MatchAnalyticsResponse; recs: RecommendationsResponse }) {
+  const derived = (analytics.recommendation_candidates || []).map(asObject);
+  const published = (recs.items || []).slice(0, 3);
+  const top = derived.filter((row) => ["PLAY", "LEAN", "PROFILE_LEAN", "WATCH"].includes(String(row.status))).slice(0, 5);
+  return (
+    <section className="panel" id="top-recommendations">
+      <div className="panelHeader">
+        <h2>PREMATCH Bets</h2>
+        <StatusPill label={`${published.length} PUBLIC · ${top.length} CANDIDATES`} tone={top.length ? "green" : "neutral"} />
+      </div>
+      {top.length ? (
+        <div className="recommendationGrid">
+          {top.map((row, index) => <RecommendationCandidateCard row={row} key={`${String(row.market)}-${String(row.side)}-${index}`} />)}
+        </div>
+      ) : (
+        <div className="emptyCard">No safe prematch recommendation candidates. Check matrix conflicts and data quality below.</div>
+      )}
+      {published.length ? <RecommendationTable items={published} /> : null}
+    </section>
+  );
+}
+
+function RecommendationCandidateCard({ row }: { row: ApiObject }) {
+  const reasons = Array.isArray(row.reason_codes) ? row.reason_codes.map(String).join(" · ") : "";
+  const risks = Array.isArray(row.risk_codes) ? row.risk_codes.map(String).join(" · ") : "";
+  return (
+    <div className={`marketMini recCard rec-${String(row.status || "pass").toLowerCase()}`}>
+      <span>{marketLabel(String(row.market || "-"))} · {String(row.side || "-").toUpperCase()}</span>
+      <strong>{String(row.pick || "-")} {formatNum(asNumber(row.line), 1)}</strong>
+      <small>{String(row.status || "PASS")} · score {formatNum(asNumber(row.score), 2)}</small>
+      <small>proj {formatNum(asNumber(row.projection), 1)} · edge {formatNum(asNumber(row.edge), 1)} · {String(row.source || "-")}</small>
+      {reasons ? <small>{reasons}</small> : null}
+      {risks ? <small className="riskText">{risks}</small> : null}
+    </div>
+  );
+}
+
+function ProjectionMatrixSection({ analytics }: { analytics: MatchAnalyticsResponse }) {
+  const rows = (analytics.projection_matrix?.rows || []).map(asObject);
+  const conflicts = rows.filter((row) => row.source_conflict);
+  return (
+    <section className="panel" id="projection-matrix">
+      <div className="panelHeader">
+        <h2>Small Market Matrix</h2>
+        <StatusPill label={`${rows.length} MARKETS · ${conflicts.length} CONFLICTS`} tone={conflicts.length ? "purple" : "neutral"} />
+      </div>
+      {!rows.length ? <div className="emptyCard">Projection matrix unavailable.</div> : null}
+      <div className="tableScroller">
+        <table className="comparisonTable compactTable matrixTable">
+          <thead>
+            <tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>Model</th><th>Profile L3/L5/L10/S</th><th>Venue/H2H</th><th>Hit L5/L10/H2H</th><th>Edge</th><th>Status</th><th>Risk</th></tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, 40).map((row, index) => {
+              const models = asObject(row.model_projections);
+              const profiles = asObject(row.profile_projections);
+              const hit = asObject(row.hit_rates);
+              return (
+                <tr className={row.source_conflict ? "conflictRow" : ""} key={String(row.key || index)}>
+                  <td>{marketLabel(String(row.market || "-"))}</td>
+                  <td>{String(row.side || "-").toUpperCase()}</td>
+                  <td>{formatNum(asNumber(row.line), 1)}</td>
+                  <td>{String(row.pick || "-")}</td>
+                  <td>{formatProjectionList(models, ["shot_model", "consensus", "calculation"])}</td>
+                  <td>{formatProjectionList(profiles, ["last3", "last5", "last10", "season"])}</td>
+                  <td>{formatProjectionList(profiles, ["venue", "h2h"])}</td>
+                  <td>{formatHitRates(hit)}</td>
+                  <td>{formatNum(asNumber(row.edge), 1)}</td>
+                  <td>{String(row.recommendation_status || "-")}</td>
+                  <td>{row.source_conflict ? "MODEL/PROFILE" : String(row.sample_quality || "-").toUpperCase()}</td>
+                </tr>
+              );
+            })}
+            {!rows.length ? <tr><td colSpan={11}>No matrix rows.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -719,6 +834,25 @@ function windowLabel(key: string): string {
 
 function marketLabel(key: string): string {
   return key.split("_").map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(" ");
+}
+
+function formatProjectionList(source: ApiObject, keys: string[]): string {
+  const parts = keys
+    .map((key) => {
+      const value = asNumber(source[key]);
+      return value == null ? null : `${key.replace("last", "L").toUpperCase()} ${formatNum(value, 1)}`;
+    })
+    .filter(Boolean);
+  return parts.length ? parts.join(" · ") : "-";
+}
+
+function formatHitRates(source: ApiObject): string {
+  const parts = ["last5", "last10", "h2h"].map((key) => {
+    const block = asObject(source[key]);
+    const hit = asNumber(block.pick_hit_rate);
+    return hit == null ? null : `${key.toUpperCase()} ${formatPct(hit)}`;
+  }).filter(Boolean);
+  return parts.length ? parts.join(" · ") : "-";
 }
 
 function formatSigned(value: number | null | undefined): string {

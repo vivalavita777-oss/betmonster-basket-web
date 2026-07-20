@@ -207,7 +207,12 @@ export type MatchAnalyticsResponse = {
   as_of?: string | null;
   snapshot_state?: string | null;
   calculation_source?: string | null;
+  calculation_scope?: string | null;
   calculation_revision?: string | null;
+  calculated_at?: string | null;
+  roster_source?: string | null;
+  roster_as_of?: string | null;
+  tipoff_at?: string | null;
   match?: ApiObject | null;
   models?: Record<string, ModelBlock | ApiObject | null> | null;
   markets?: {
@@ -222,6 +227,11 @@ export type MatchAnalyticsResponse = {
   player_props?: ApiObject[] | null;
   period_profiles?: ApiObject | null;
   lineups?: ApiObject | null;
+  projection_matrix?: { version?: string | null; rows?: ApiObject[] | null; hit_rates?: ApiObject | null } | null;
+  hit_rates?: ApiObject | null;
+  recommendation_candidates?: ApiObject[] | null;
+  source_conflicts?: ApiObject[] | null;
+  roster_integrity?: ApiObject | null;
   data_quality?: ApiObject | null;
 };
 
