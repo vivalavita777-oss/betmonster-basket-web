@@ -170,11 +170,13 @@ export function LiveResultComparison({
   match,
   frozenItems,
   ledgerItems,
+  initialSignals,
 }: {
   initialPostgame: PostgameResponse;
   match: MatchDetailResponse;
   frozenItems: RecommendationItem[];
   ledgerItems: RecommendationItem[];
+  initialSignals: SignalResponse;
 }) {
   const { gameId, status } = useLiveMatchState();
   const [postgame, setPostgame] = useState(initialPostgame);
@@ -184,7 +186,8 @@ export function LiveResultComparison({
   const [settlementPendingGrace, setSettlementPendingGrace] = useState(false);
   const rows = buildResultComparison(frozenItems, settledRecommendations);
   const settlementComplete = isSettlementComplete(rows);
-  const shouldRetrySettlement = isFinishedStatus(status) && !settlementComplete && attemptCount < MAX_SETTLEMENT_ATTEMPTS;
+  const hasPrematchBets = frozenItems.length > 0 || settledRecommendations.length > 0;
+  const shouldRetrySettlement = isFinishedStatus(status) && hasPrematchBets && !settlementComplete && attemptCount < MAX_SETTLEMENT_ATTEMPTS;
 
   useEffect(() => {
     if (!shouldRetrySettlement) return;
@@ -220,24 +223,28 @@ export function LiveResultComparison({
   }, [attemptCount, settlementComplete]);
 
   const badges = heuristicBadges(postgame);
-  const showPending = !settlementComplete || settlementPendingGrace;
+  const liveSignalsSummary = postgame.signals_summary || initialSignals.summary;
+  const prematchBetsProfit = settledRecommendations.reduce((sum, item) => sum + (item.profit_1u ?? 0), 0);
+  const showPending = hasPrematchBets && (!settlementComplete || settlementPendingGrace);
   return (
     <section className="panel" id="result">
       <div className="panelHeader">
         <h2>Result comparison</h2>
         <div className="statusCluster">
           <StatusPill label={postgame.available ? "FINAL SCORE AVAILABLE" : "PENDING"} tone={postgame.available ? "green" : "neutral"} />
-          {showPending ? <StatusPill label="SETTLEMENT PENDING" tone="neutral" /> : <StatusPill label="SETTLED" tone="green" />}
+          {hasPrematchBets ? (showPending ? <StatusPill label="PREMATCH BETS PENDING" tone="neutral" /> : <StatusPill label="PREMATCH BETS SETTLED" tone="green" />) : <StatusPill label="NO PREMATCH BETS" tone="neutral" />}
         </div>
       </div>
       <div className="resultGrid">
         <Metric label="Final score" value={`${postgame.final_score?.home ?? match.home_score ?? "-"} : ${postgame.final_score?.away ?? match.away_score ?? "-"}`} />
         <Metric label="Final total" value={formatNum(postgame.final_score?.total, 0)} />
-        <Metric label="Signals P/L" value={`${formatNum(postgame.signals_summary?.profit_1u, 2)}u`} />
-        <Metric label="Settlement tries" value={String(attemptCount)} />
+        <Metric label="Prematch Bets P/L" value={`${formatNum(prematchBetsProfit, 2)}u`} />
+        <Metric label="Live Signals P/L" value={`${formatNum(liveSignalsSummary?.profit_1u, 2)}u`} />
+        <Metric label="Prematch settlement tries" value={String(attemptCount)} />
       </div>
-      {postgameFetched && showPending ? <div className="emptyCard">Waiting for settled recommendation rows.</div> : null}
-      {postgame.best_bet_result ? (
+      {postgameFetched && showPending ? <div className="emptyCard">Waiting for settled prematch bet rows.</div> : null}
+      {!hasPrematchBets ? <div className="emptyCard">No public prematch bets for this match. Live Signals are settled separately.</div> : null}
+      {hasPrematchBets && postgame.best_bet_result ? (
         <div className="emptyCard">
           <div className="statusCluster">{badges.map((badge) => <StatusPill key={badge} label={badge} tone="purple" />)}</div>
           <strong>{postgame.best_bet_result.market || "-"} · {postgame.best_bet_result.selection || "-"}</strong>
@@ -248,6 +255,7 @@ export function LiveResultComparison({
         <table className="comparisonTable">
           <thead>
             <tr>
+              <th>Type</th>
               <th>Market</th>
               <th>Pick</th>
               <th>Prematch line</th>
@@ -262,6 +270,7 @@ export function LiveResultComparison({
           <tbody>
             {displayRows.map((row) => (
               <tr key={row.key}>
+                <td>Prematch Bets</td>
                 <td>{row.market || "-"}</td>
                 <td>{row.pick || "-"}</td>
                 <td>{formatNum(row.line, 1)}</td>
@@ -273,7 +282,7 @@ export function LiveResultComparison({
                 <td>{formatNum(row.profit1u, 2)}</td>
               </tr>
             ))}
-            {!displayRows.length ? <tr><td colSpan={9}>No result comparison rows yet.</td></tr> : null}
+            {!displayRows.length ? <tr><td colSpan={10}>No prematch bet result rows yet.</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -342,22 +351,22 @@ export function SignalSummaryRail({ settledSummary }: { settledSummary?: SignalR
   return (
     <>
       <div className="railCard">
-        <h3>Current public signals</h3>
+        <h3>Live Signals</h3>
         {signalsError ? (
           <div className="railRow"><span>Status</span><strong>Signals unavailable</strong></div>
         ) : (
           <>
             <div className="railRow"><span>Count</span><strong>{signals.count || 0}</strong></div>
-            <div className="railRow"><span>Open/settled</span><strong>{currentSummary.wins || 0}/{currentSummary.losses || 0}</strong></div>
-            <div className="railRow"><span>Profit</span><strong>{formatNum(currentSummary.profit_1u, 2)}u</strong></div>
+            <div className="railRow"><span>W/L/P</span><strong>{currentSummary.wins || 0}/{currentSummary.losses || 0}/{currentSummary.pushes || 0}</strong></div>
+            <div className="railRow"><span>Live Signals P/L</span><strong>{formatNum(currentSummary.profit_1u, 2)}u</strong></div>
           </>
         )}
       </div>
       <div className="railCard">
-        <h3>Settled signal results</h3>
+        <h3>Settled Live Signals</h3>
         <div className="railRow"><span>Wins</span><strong>{settledSummary?.wins ?? 0}</strong></div>
         <div className="railRow"><span>Losses</span><strong>{settledSummary?.losses ?? 0}</strong></div>
-        <div className="railRow"><span>Profit</span><strong>{formatNum(settledSummary?.profit_1u, 2)}u</strong></div>
+        <div className="railRow"><span>Live Signals P/L</span><strong>{formatNum(settledSummary?.profit_1u, 2)}u</strong></div>
       </div>
     </>
   );
@@ -369,8 +378,8 @@ function SignalsPanel() {
   return (
     <section className="panel" id="signals">
       <div className="panelHeader">
-        <h2>Signals</h2>
-        <StatusPill label={`${signals.count || 0} SIGNALS`} tone="green" />
+        <h2>Live Signals</h2>
+        <StatusPill label={`${signals.count || 0} LIVE SIGNALS`} tone="green" />
       </div>
       {error ? (
         <div className="stateBox danger">
@@ -378,7 +387,7 @@ function SignalsPanel() {
           <button type="button" className="textButton" onClick={retrySignals}>Retry</button>
         </div>
       ) : null}
-      {!error && !signals.items.length ? <div className="emptyCard">No public signals for this match</div> : null}
+      {!error && !signals.items.length ? <div className="emptyCard">No live signals for this match</div> : null}
       <div className="signalGrid">
         {signals.items.map((signal) => (
           <div className="signalCard" key={signalKey(signal)}>

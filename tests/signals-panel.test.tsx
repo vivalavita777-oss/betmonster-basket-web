@@ -29,7 +29,7 @@ describe("SignalsPanel", () => {
       </LiveMatchProvider>,
     );
 
-    expect(screen.getByText("No public signals for this match")).toBeTruthy();
+    expect(screen.getByText("No live signals for this match")).toBeTruthy();
     expect(screen.queryByText("Signals temporarily unavailable")).toBeNull();
   });
 

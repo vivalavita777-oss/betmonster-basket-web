@@ -16,6 +16,7 @@ import {
   asNumber,
   asObject,
   getQuarterProfiles,
+  isLiveStatus,
   normalizePrematchMarkets,
   shotMarketRows,
 } from "@/lib/matchUtils";
@@ -34,7 +35,6 @@ import { formatMatchDate, formatMatchTime } from "@/lib/time";
 type OptionalResult<T> = { data: T; error: string | null };
 
 const tabs = [
-  ["overview", "Overview"],
   ["live-center", "Live Center"],
   ["main-markets", "Main Markets"],
   ["periods", "Periods"],
@@ -82,8 +82,10 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   const frozenItems = frozenRecommendations(frozen);
   const displayAnalytics = selectDisplayAnalytics(match, analytics, frozen);
   const afterTipoff = isAfterTipoffStatus(match.status);
-  const modelSource = displayAnalytics.models || frozen.models || (!afterTipoff ? prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) : {}) || {};
-  const marketSource = asObject(displayAnalytics.markets?.main || frozen.markets || (!afterTipoff ? prematch.market || match.market : {}));
+  const liveVisible = isLiveStatus(match.status);
+  const visibleTabs = tabs.filter(([id]) => liveVisible || id !== "live-center");
+  const modelSource = displayAnalytics.models || frozen.models || (!afterTipoff ? prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) : asObject(match.model_summary) as FrozenPrematchResponse["models"]) || {};
+  const marketSource = asObject(displayAnalytics.markets?.main || frozen.markets || (!afterTipoff ? prematch.market || match.market : match.market || {}));
   const endpointErrors = [
     ["Prematch", prematchResult.error],
     ["Postgame", postgameResult.error],
@@ -98,14 +100,13 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
     <section className="matchPage">
       <MatchHero match={match} />
       <nav className="tabsRow stickyTabs" aria-label="Match sections">
-        {tabs.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}
+        {visibleTabs.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}
       </nav>
 
       <section className="matchLayout">
         <div className="matchMain">
           {endpointErrors.map(([label, error]) => <EndpointNotice key={label} label={label || "Endpoint"} error={error || ""} />)}
-          <OverviewSection prematch={prematch} frozen={frozen} frozenItems={frozenItems} models={modelSource} analytics={displayAnalytics} matchStatus={match.status} />
-          <LiveMatchCenter />
+          {liveVisible ? <LiveMatchCenter /> : null}
           <MainMarketsSection markets={marketSource} models={modelSource} />
           <PeriodsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
           <TeamStatsSection analytics={displayAnalytics} />
@@ -115,7 +116,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
           <section className="panel" id="recommendations">
             <div className="panelHeader">
               <h2>Recommendations</h2>
-              <StatusPill label={`${recs.count} PUBLIC`} tone="neutral" />
+              <StatusPill label={`${recs.count} PREMATCH BETS`} tone="neutral" />
             </div>
             <RecommendationTable items={recs.items} />
           </section>
@@ -124,18 +125,17 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
             match={match}
             frozenItems={frozenItems}
             ledgerItems={recs.items}
+            initialSignals={initialSignals}
+          />
+          <MetaFooter
+            analytics={displayAnalytics}
+            frozen={frozen}
+            prematch={prematch}
+            match={match}
+            signals={initialSignals}
+            postgame={postgame}
           />
         </div>
-
-        <aside className="matchRail">
-          <RailCard title="Data Quality" rows={qualityRows(mergeQuality(displayAnalytics.data_quality, initialSignals, frozen), match.data_quality, prematch.data_quality, frozen.data_quality)} />
-          <RailCard title="Model State" rows={[
-            ["Source", displayAnalytics.calculation_source || frozen.calculation_source || prematch.calculation_source || match.calculation_source || "-"],
-            ["Roster", frozen.roster_state || prematch.roster_state || match.roster_state || "-"],
-            ["Revision", frozen.revision || displayAnalytics.calculation_revision || frozen.calculation_revision || prematch.calculation_revision || match.calculation_revision || "-"],
-          ]} />
-          <SignalSummaryRail settledSummary={postgame.signals_summary} />
-        </aside>
       </section>
     </section>
     </LiveMatchProvider>
@@ -160,11 +160,66 @@ function initialLive(match: MatchDetailResponse): LiveResponse {
   };
 }
 
+function MetaFooter({
+  analytics,
+  frozen,
+  prematch,
+  match,
+  signals,
+  postgame,
+}: {
+  analytics: MatchAnalyticsResponse;
+  frozen: FrozenPrematchResponse;
+  prematch: PrematchResponse;
+  match: MatchDetailResponse;
+  signals: SignalResponse;
+  postgame: PostgameResponse;
+}) {
+  return (
+    <section className="panel metaFooter" id="meta">
+      <div className="panelHeader">
+        <h2>Meta</h2>
+        <StatusPill label={frozenBadgeLabel(frozen, match.status)} tone={frozen.available && !frozen.partial ? "green" : "purple"} />
+      </div>
+      <div className="metaGrid">
+        <RailCard title="Data Quality" rows={qualityRows(mergeQuality(analytics.data_quality, signals, frozen), match.data_quality, prematch.data_quality, frozen.data_quality)} />
+        <RailCard title="Model State" rows={[
+          ["Snapshot", frozen.snapshot_at || "-"],
+          ["Snapshot revision", frozen.revision || "-"],
+          ["Calculation revision", analytics.calculation_revision || frozen.calculation_revision || prematch.calculation_revision || match.calculation_revision || "-"],
+          ["Analytics hash", frozen.analytics_v2_hash || "-"],
+          ["Roster", frozen.roster_state || prematch.roster_state || match.roster_state || "-"],
+        ]} />
+        <SignalSummaryRail settledSummary={postgame.signals_summary} />
+      </div>
+    </section>
+  );
+}
+
 function selectDisplayAnalytics(match: MatchDetailResponse, current: MatchAnalyticsResponse, frozen: FrozenPrematchResponse): MatchAnalyticsResponse {
   const frozenAnalytics = asObject(frozen.analytics_v2 || frozen.analytics) as MatchAnalyticsResponse;
   const afterTipoff = isAfterTipoffStatus(match.status);
   if (afterTipoff) {
-    return Object.keys(frozenAnalytics).length ? { ...frozenAnalytics, data_quality: frozenAnalytics.data_quality || frozen.data_quality } : {
+    if (Object.keys(frozenAnalytics).length) {
+      return { ...frozenAnalytics, data_quality: frozenAnalytics.data_quality || frozen.data_quality };
+    }
+    if (Object.keys(asObject(current)).length) {
+      return {
+        ...current,
+        snapshot_state: "current_analytics_fallback",
+        data_quality: {
+          ...asObject(current.data_quality),
+          overall: "partial",
+          sources: {
+            ...asObject(asObject(current.data_quality).sources),
+            frozen_snapshot: { status: "missing" },
+            analytics_fallback: { status: "current_after_tipoff" },
+          },
+          missing_blocks: Array.from(new Set([...(Array.isArray(asObject(current.data_quality).missing_blocks) ? asObject(current.data_quality).missing_blocks as string[] : []), "frozen_analytics_v2"])),
+        },
+      };
+    }
+    return {
       ...emptyAnalytics,
       data_quality: { overall: "partial", sources: { frozen_snapshot: { status: frozen.available ? (frozen.partial ? "partial" : "frozen") : "missing" } }, missing_blocks: ["frozen_analytics_v2"] },
     };
@@ -201,44 +256,6 @@ function MatchHero({ match }: { match: MatchDetailResponse }) {
   );
 }
 
-function OverviewSection({
-  prematch,
-  frozen,
-  frozenItems,
-  models,
-  analytics,
-  matchStatus,
-}: {
-  prematch: PrematchResponse;
-  frozen: FrozenPrematchResponse;
-  frozenItems: RecommendationsResponse["items"];
-  models: FrozenPrematchResponse["models"];
-  analytics: MatchAnalyticsResponse;
-  matchStatus?: string | null;
-}) {
-  const legacyFrozen = frozen.available && frozen.analytics_v2_available === false;
-  const frozenMetaItem = frozenItems[0];
-  return (
-    <section className="panel" id="overview">
-      <div className="panelHeader">
-        <h2>Overview</h2>
-        <StatusPill label={frozenBadgeLabel(frozen, matchStatus)} tone={frozen.partial ? "purple" : "green"} />
-      </div>
-      {legacyFrozen ? <div className="stateBox">Historical advanced analytics unavailable.</div> : null}
-      <div className="metricGrid compactMetrics">
-        <Metric label="Snapshot" value={frozen.snapshot_at || "-"} />
-        <Metric label="Revision" value={frozen.revision || frozen.calculation_revision || frozenMetaItem?.calculation_revision || prematch.calculation_revision || "-"} />
-        <Metric label="Source" value={(analytics.calculation_source || frozen.calculation_source || frozenMetaItem?.calculation_source || prematch.calculation_source || "-").toUpperCase()} />
-        <Metric label="Calculation" value={analytics.calculation_revision || frozen.calculation_revision || frozenMetaItem?.calculation_revision || prematch.calculation_revision || "-"} />
-        <Metric label="Analytics hash" value={frozen.analytics_v2_hash || "-"} />
-        <Metric label="Roster" value={frozen.roster_state || prematch.roster_state || "-"} />
-      </div>
-      <ModelBoard models={models} />
-      <RecommendationTable items={frozenItems} />
-    </section>
-  );
-}
-
 function ModelBoard({ models }: { models: FrozenPrematchResponse["models"] }) {
   const source = models || {};
   const rows = ([
@@ -266,28 +283,52 @@ function ModelBoard({ models }: { models: FrozenPrematchResponse["models"] }) {
 function MainMarketsSection({ markets, models }: { markets: ApiObject | null | undefined; models: FrozenPrematchResponse["models"] }) {
   const rows = normalizePrematchMarkets(markets, models);
   const winner = asObject(asObject(markets).winner);
+  const spread = rows.find((row) => row.key === "spread");
+  const homeTotal = rows.find((row) => row.key === "it_home");
+  const awayTotal = rows.find((row) => row.key === "it_away");
+  const total = rows.find((row) => row.key === "total");
+  const homeLine = spread?.line ?? null;
+  const awayLine = homeLine == null ? null : -homeLine;
   return (
     <section className="panel" id="main-markets">
       <div className="panelHeader"><h2>Main Markets</h2><StatusPill label="BOOK VS MODEL" tone="neutral" /></div>
-      <div className="marketGrid">
-        <div className="marketMini">
-          <span>Winner</span>
-          <strong>W1 {formatNum(asNumber(winner.home_odds), 2)} / W2 {formatNum(asNumber(winner.away_odds), 2)}</strong>
+      <div className="mainMarketTop">
+        <div className="marketMini winnerSpreadCard">
+          <span>Winner / Spread</span>
+          <strong>W1 {formatNum(asNumber(winner.home_odds), 2)} / {formatSigned(homeLine)} ({formatNum(spread?.overOdds, 2)})</strong>
+          <strong>W2 {formatNum(asNumber(winner.away_odds), 2)} / {formatSigned(awayLine)} ({formatNum(spread?.underOdds, 2)})</strong>
           <small>{String(winner.status || "missing")}</small>
         </div>
+        {spread ? <FeaturedSpread row={spread} /> : null}
+        <ModelBoard models={models} />
       </div>
-      <div className="marketGrid">
-        {rows.map((row) => (
-          <div className="marketMini" key={row.key}>
-            <span>{row.label}</span>
-            <strong>{formatNum(row.line, 1)}</strong>
-            <small>O {formatNum(row.overOdds, 2)} / U {formatNum(row.underOdds, 2)}</small>
-            <small>proj {formatNum(row.projection, 1)} · edge {formatNum(row.edge, 1)}</small>
-            <small>{row.pick || "-"} · {row.status}</small>
-          </div>
-        ))}
+      <div className="marketGrid totalsGrid">
+        {[homeTotal, awayTotal, total].filter(Boolean).map((row) => <MarketMini row={row!} key={row!.key} />)}
       </div>
     </section>
+  );
+}
+
+function FeaturedSpread({ row }: { row: ReturnType<typeof normalizePrematchMarkets>[number] }) {
+  return (
+    <div className="marketMini featuredMarket">
+      <span>SPREAD HOME {formatSigned(row.line)}</span>
+      <strong>{row.pick || "-"}</strong>
+      <small>proj {formatNum(row.projection, 1)} · edge {formatNum(row.edge, 1)}</small>
+    </div>
+  );
+}
+
+function MarketMini({ row }: { row: ReturnType<typeof normalizePrematchMarkets>[number] }) {
+  const label = row.key === "it_home" ? "Home total" : row.key === "it_away" ? "Away total" : row.label;
+  return (
+    <div className="marketMini">
+      <span>{label}</span>
+      <strong>{formatNum(row.line, 1)}</strong>
+      <small>O {formatNum(row.overOdds, 2)} / U {formatNum(row.underOdds, 2)}</small>
+      <small>proj {formatNum(row.projection, 1)} · edge {formatNum(row.edge, 1)}</small>
+      <small>{row.pick || "-"} · {row.status}</small>
+    </div>
   );
 }
 
@@ -308,40 +349,53 @@ function TeamFormSection({ analytics, match }: { analytics: MatchAnalyticsRespon
 
 function TeamCard({ side, name, profile }: { side: string; name: string; profile: ApiObject }) {
   const allWindows = asObject(profile.windows);
-  const windows = asObject(allWindows.overall);
-  const homeAway = ["overall", "home", "away"].map((key) => [key, asObject(allWindows[key])] as const);
-  const rows = ["last3", "last5", "last10", "season"].map((key) => [key, asObject(windows[key])] as const);
+  const splits = ["overall", "home", "away"].map((key) => [key, asObject(allWindows[key])] as const);
+  const group = `team-form-${side.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
     <div className="teamCard">
       <div className="panelHeader"><h3>{name}</h3><span className="league">{side}</span></div>
-      <div className="statusCluster">
-        {homeAway.map(([key, value]) => <StatusPill key={key} label={`${key.toUpperCase()} ${formatNum(asNumber(asObject(value.last5).games), 0)}`} tone={key === "overall" ? "green" : "neutral"} />)}
+      <div className="splitTabs">
+        {splits.map(([key, value], index) => (
+          <label key={key}>
+            <input type="radio" name={group} defaultChecked={index === 0} />
+            <span>{key.toUpperCase()} {formatNum(asNumber(asObject(value.last5).games), 0)}</span>
+          </label>
+        ))}
       </div>
-      <div className="tableScroller">
-        <table className="comparisonTable compactTable">
-          <thead><tr><th>Window</th><th>PF</th><th>PA</th><th>Total</th><th>Margin</th><th>Win%</th><th>SD</th><th>Sample</th></tr></thead>
-          <tbody>
-            {rows.map(([key, row]) => (
-              <tr key={key}>
-                <td>{windowLabel(key)}</td>
-                <td>{formatNum(asNumber(row.points), 1)}</td>
-                <td>{formatNum(asNumber(row.opp_points), 1)}</td>
-                <td>{formatNum(asNumber(row.total), 1)}</td>
-                <td>{formatNum(asNumber(row.margin), 1)}</td>
-                <td>{formatPct(asNumber(row.win_rate))}</td>
-                <td>{formatNum(asNumber(row.total_sd), 1)}</td>
-                <td>{formatNum(asNumber(row.games), 0)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {splits.map(([key, windows]) => <TeamSplitTable key={key} splitKey={key} windows={windows} />)}
       <div className="miniMetrics">
-        <Metric label="REB" value={formatNum(asNumber(asObject(windows.last5).reb), 1)} />
-        <Metric label="AST" value={formatNum(asNumber(asObject(windows.last5).ast), 1)} />
-        <Metric label="TOV" value={formatNum(asNumber(asObject(windows.last5).tov), 1)} />
-        <Metric label="Pace" value={formatNum(asNumber(asObject(windows.last5).pace), 1)} />
+        <Metric label="REB" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).reb), 1)} />
+        <Metric label="AST" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).ast), 1)} />
+        <Metric label="TOV" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).tov), 1)} />
+        <Metric label="Pace" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).pace), 1)} />
       </div>
+    </div>
+  );
+}
+
+function TeamSplitTable({ splitKey, windows }: { splitKey: string; windows: ApiObject }) {
+  const rows = ["last3", "last5", "last10", "season"].map((key) => [key, asObject(windows[key])] as const);
+  return (
+    <div className={`tableScroller teamSplitTable teamSplit-${splitKey}`}>
+      <table className="comparisonTable compactTable">
+        <thead><tr><th>Window</th><th>PF</th><th>PA</th><th>Total</th><th>Margin</th><th>Win%</th><th>PF SD</th><th>PA SD</th><th>Total SD</th><th>Sample</th></tr></thead>
+        <tbody>
+          {rows.map(([key, row]) => (
+            <tr key={key}>
+              <td>{windowLabel(key)}</td>
+              <td>{formatNum(asNumber(row.points), 1)}</td>
+              <td>{formatNum(asNumber(row.opp_points), 1)}</td>
+              <td>{formatNum(asNumber(row.total), 1)}</td>
+              <td>{formatNum(asNumber(row.margin), 1)}</td>
+              <td>{formatPct(asNumber(row.win_rate))}</td>
+              <td>{formatNum(asNumber(row.points_sd), 1)}</td>
+              <td>{formatNum(asNumber(row.opp_points_sd), 1)}</td>
+              <td>{formatNum(asNumber(row.total_sd), 1)}</td>
+              <td>{formatNum(asNumber(row.games), 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -557,4 +611,9 @@ function windowLabel(key: string): string {
 
 function marketLabel(key: string): string {
   return key.split("_").map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(" ");
+}
+
+function formatSigned(value: number | null | undefined): string {
+  if (value == null) return "-";
+  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
 }

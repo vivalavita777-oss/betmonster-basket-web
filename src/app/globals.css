@@ -113,7 +113,7 @@ pre {
 }
 
 main {
-  width: min(1440px, 100%);
+  width: min(1760px, 100%);
   margin: 0 auto;
   padding: 22px;
 }
@@ -207,10 +207,7 @@ main {
 }
 
 .matchLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 14px;
-  align-items: start;
+  display: block;
 }
 
 .matchMain,
@@ -232,6 +229,8 @@ main {
 
 .modelGrid,
 .marketGrid,
+.mainMarketTop,
+.metaGrid,
 .liveCenterGrid,
 .teamGrid,
 .quarterGrid,
@@ -248,6 +247,16 @@ main {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.mainMarketTop {
+  grid-template-columns: 1.15fr 1fr 1.35fr;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+
+.metaGrid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .liveCenterGrid,
 .resultGrid {
   grid-template-columns: 1.2fr repeat(3, 1fr);
@@ -257,6 +266,10 @@ main {
 .shotGrid,
 .signalGrid,
 .liveThreePmGrid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.totalsGrid {
   grid-template-columns: repeat(3, 1fr);
 }
 
@@ -331,6 +344,68 @@ main {
   display: block;
   margin-top: 5px;
   font-size: 20px;
+}
+
+.winnerSpreadCard strong {
+  font-size: 18px;
+}
+
+.featuredMarket {
+  border-color: #2f7a4a;
+  background: #0d2219;
+}
+
+.featuredMarket span {
+  color: #86efac;
+  font-weight: 800;
+}
+
+.splitTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.splitTabs label {
+  min-width: 0;
+}
+
+.splitTabs input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splitTabs span {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #07101d;
+  color: #c7d4e4;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.splitTabs input:checked + span {
+  border-color: #4ade80;
+  background: #14532d;
+  color: #f0fdf4;
+}
+
+.teamSplitTable {
+  display: none;
+}
+
+.teamCard:has(.splitTabs label:nth-child(1) input:checked) .teamSplit-overall,
+.teamCard:has(.splitTabs label:nth-child(2) input:checked) .teamSplit-home,
+.teamCard:has(.splitTabs label:nth-child(3) input:checked) .teamSplit-away {
+  display: block;
+}
+
+.metaFooter {
+  scroll-margin-top: 110px;
 }
 
 .teamCard {
@@ -627,6 +702,9 @@ th {
   .modelGrid,
   .liveCenterGrid,
   .marketGrid,
+  .mainMarketTop,
+  .metaGrid,
+  .totalsGrid,
   .marketStrip,
   .shotGrid,
   .signalGrid,
@@ -670,6 +748,9 @@ th {
   .modelGrid,
   .liveCenterGrid,
   .marketGrid,
+  .mainMarketTop,
+  .metaGrid,
+  .totalsGrid,
   .marketStrip,
   .teamGrid,
   .quarterGrid,
