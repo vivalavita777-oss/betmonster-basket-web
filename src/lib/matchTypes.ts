@@ -217,6 +217,7 @@ export type MatchAnalyticsResponse = {
     shots?: ApiObject | null;
   } | null;
   team_profiles?: ApiObject | null;
+  h2h_games?: ApiObject[] | null;
   player_profiles?: ApiObject[] | null;
   player_props?: ApiObject[] | null;
   period_profiles?: ApiObject | null;

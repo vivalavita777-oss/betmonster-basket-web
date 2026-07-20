@@ -343,6 +343,7 @@ function TeamFormSection({ analytics, match }: { analytics: MatchAnalyticsRespon
         <TeamCard side="Home" name={match.home_team || "Home"} profile={asObject(profiles.home)} />
         <TeamCard side="Away" name={match.away_team || "Away"} profile={asObject(profiles.away)} />
       </div>
+      <TeamRecentGamesTable title="H2H Games" games={Array.isArray(analytics.h2h_games) ? analytics.h2h_games.map(asObject) : []} />
     </section>
   );
 }
@@ -363,7 +364,7 @@ function TeamCard({ side, name, profile }: { side: string; name: string; profile
         ))}
       </div>
       {splits.map(([key, windows]) => <TeamSplitTable key={key} splitKey={key} windows={windows} />)}
-      <TeamRecentGamesTable games={Array.isArray(profile.recent_games) ? profile.recent_games.map(asObject) : []} />
+      <TeamRecentGamesTable title="Recent Games" games={Array.isArray(profile.recent_games) ? profile.recent_games.map(asObject) : []} />
     </div>
   );
 }
@@ -402,10 +403,10 @@ function TeamSplitTable({ splitKey, windows }: { splitKey: string; windows: ApiO
   );
 }
 
-function TeamRecentGamesTable({ games }: { games: ApiObject[] }) {
+function TeamRecentGamesTable({ title, games }: { title: string; games: ApiObject[] }) {
   return (
     <div className="teamHistory">
-      <div className="subHeader">Recent Games</div>
+      <div className="subHeader">{title}</div>
       <div className="tableScroller">
         <table className="comparisonTable compactTable">
           <thead><tr><th>Date</th><th>Side</th><th>Opponent</th><th>Score</th><th>Win</th><th>Spread</th><th>IT</th><th>Total</th><th>Q1</th><th>H1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>H2</th><th>2PM/A</th><th>3PM/A</th><th>REB</th><th>AST</th><th>TOV</th><th>Fouls</th></tr></thead>
@@ -697,6 +698,9 @@ function formatSigned(value: number | null | undefined): string {
 function periodResult(value: unknown): string {
   if (value === true) return "WIN";
   if (value === false) return "LOSS";
+  if (String(value).toLowerCase() === "win") return "WIN";
+  if (String(value).toLowerCase() === "loss") return "LOSS";
+  if (String(value).toLowerCase() === "push") return "PUSH";
   return "-";
 }
 
