@@ -9,14 +9,14 @@ Responsive Next.js shell for the Basket Monster public basketball app.
 ```powershell
 cd C:\PT3\PR\Sportapp\basket\betmonster-basket-web
 copy .env.example .env.local
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 API default:
 
 ```text
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8010
+BASKET_API_INTERNAL_URL=http://127.0.0.1:8010
 ```
 
 ## Routes
