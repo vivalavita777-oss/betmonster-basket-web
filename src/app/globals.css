@@ -233,6 +233,7 @@ main {
 .metaGrid,
 .liveCenterGrid,
 .teamGrid,
+.playersByTeam,
 .quarterGrid,
 .shotGrid,
 .signalGrid,
@@ -276,6 +277,11 @@ main {
 .teamGrid,
 .quarterGrid {
   grid-template-columns: repeat(2, 1fr);
+}
+
+.teamFormList,
+.playersByTeam {
+  grid-template-columns: 1fr;
 }
 
 .miniMetrics {
@@ -412,6 +418,18 @@ main {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.teamHistory {
+  display: grid;
+  gap: 8px;
+}
+
+.subHeader {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .teamCard h3,

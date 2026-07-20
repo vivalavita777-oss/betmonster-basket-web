@@ -339,7 +339,7 @@ function TeamFormSection({ analytics, match }: { analytics: MatchAnalyticsRespon
     <section className="panel" id="team-form">
       <div className="panelHeader"><h2>Team Form</h2><StatusPill label="LAST 3 / 5 / 10 / SEASON" tone="neutral" /></div>
       {reason ? <div className="emptyCard">{reason}</div> : null}
-      <div className="teamGrid">
+      <div className="teamGrid teamFormList">
         <TeamCard side="Home" name={match.home_team || "Home"} profile={asObject(profiles.home)} />
         <TeamCard side="Away" name={match.away_team || "Away"} profile={asObject(profiles.away)} />
       </div>
@@ -363,12 +363,7 @@ function TeamCard({ side, name, profile }: { side: string; name: string; profile
         ))}
       </div>
       {splits.map(([key, windows]) => <TeamSplitTable key={key} splitKey={key} windows={windows} />)}
-      <div className="miniMetrics">
-        <Metric label="REB" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).reb), 1)} />
-        <Metric label="AST" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).ast), 1)} />
-        <Metric label="TOV" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).tov), 1)} />
-        <Metric label="Pace" value={formatNum(asNumber(asObject(asObject(allWindows.overall).last5).pace), 1)} />
-      </div>
+      <TeamRecentGamesTable games={Array.isArray(profile.recent_games) ? profile.recent_games.map(asObject) : []} />
     </div>
   );
 }
@@ -378,7 +373,7 @@ function TeamSplitTable({ splitKey, windows }: { splitKey: string; windows: ApiO
   return (
     <div className={`tableScroller teamSplitTable teamSplit-${splitKey}`}>
       <table className="comparisonTable compactTable">
-        <thead><tr><th>Window</th><th>PF</th><th>PA</th><th>Total</th><th>Margin</th><th>Win%</th><th>PF SD</th><th>PA SD</th><th>Total SD</th><th>Sample</th></tr></thead>
+        <thead><tr><th>Window</th><th>PF</th><th>PA</th><th>Total</th><th>Margin</th><th>Win%</th><th>2PM</th><th>2PA</th><th>3PM</th><th>3PA</th><th>REB</th><th>AST</th><th>TOV</th><th>Fouls</th><th>PF SD</th><th>Total SD</th><th>Sample</th></tr></thead>
         <tbody>
           {rows.map(([key, row]) => (
             <tr key={key}>
@@ -388,14 +383,61 @@ function TeamSplitTable({ splitKey, windows }: { splitKey: string; windows: ApiO
               <td>{formatNum(asNumber(row.total), 1)}</td>
               <td>{formatNum(asNumber(row.margin), 1)}</td>
               <td>{formatPct(asNumber(row.win_rate))}</td>
+              <td>{formatNum(asNumber(row.two_pm), 1)}</td>
+              <td>{formatNum(asNumber(row.two_pa), 1)}</td>
+              <td>{formatNum(asNumber(row.fg3m), 1)}</td>
+              <td>{formatNum(asNumber(row.fg3a), 1)}</td>
+              <td>{formatNum(asNumber(row.reb), 1)}</td>
+              <td>{formatNum(asNumber(row.ast), 1)}</td>
+              <td>{formatNum(asNumber(row.tov), 1)}</td>
+              <td>{formatNum(asNumber(row.fouls), 1)}</td>
               <td>{formatNum(asNumber(row.points_sd), 1)}</td>
-              <td>{formatNum(asNumber(row.opp_points_sd), 1)}</td>
               <td>{formatNum(asNumber(row.total_sd), 1)}</td>
               <td>{formatNum(asNumber(row.games), 0)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function TeamRecentGamesTable({ games }: { games: ApiObject[] }) {
+  return (
+    <div className="teamHistory">
+      <div className="subHeader">Recent Games</div>
+      <div className="tableScroller">
+        <table className="comparisonTable compactTable">
+          <thead><tr><th>Date</th><th>Side</th><th>Opponent</th><th>Score</th><th>Win</th><th>Spread</th><th>IT</th><th>Total</th><th>Q1</th><th>H1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>H2</th><th>2PM/A</th><th>3PM/A</th><th>REB</th><th>AST</th><th>TOV</th><th>Fouls</th></tr></thead>
+          <tbody>
+            {games.slice(0, 10).map((game, index) => (
+              <tr key={String(game.game_id || index)}>
+                <td>{shortDate(game.date)}</td>
+                <td>{String(game.side || "-").toUpperCase()}</td>
+                <td>{String(game.opponent || "-")}</td>
+                <td>{formatNum(asNumber(game.points), 0)}:{formatNum(asNumber(game.opp_points), 0)}</td>
+                <td>{game.win === true ? "WIN" : game.win === false ? "LOSS" : "-"}</td>
+                <td>{formatSigned(asNumber(game.handicap))} · {String(game.spread_result || "-")}</td>
+                <td>{formatNum(asNumber(game.team_total_line), 1)} · {String(game.team_total_result || "-")}</td>
+                <td>{formatNum(asNumber(game.total_line), 1)} · {String(game.total_result || "-")}</td>
+                <td>{periodResult(game.q1_win)}</td>
+                <td>{periodResult(game.h1_win)}</td>
+                <td>{periodResult(game.q2_win)}</td>
+                <td>{periodResult(game.q3_win)}</td>
+                <td>{periodResult(game.q4_win)}</td>
+                <td>{periodResult(game.h2_win)}</td>
+                <td>{formatNum(asNumber(game.two_pm), 0)}/{formatNum(asNumber(game.two_pa), 0)}</td>
+                <td>{formatNum(asNumber(game.fg3m), 0)}/{formatNum(asNumber(game.fg3a), 0)}</td>
+                <td>{formatNum(asNumber(game.reb), 0)}</td>
+                <td>{formatNum(asNumber(game.ast), 0)}</td>
+                <td>{formatNum(asNumber(game.tov), 0)}</td>
+                <td>{formatNum(asNumber(game.fouls), 0)}</td>
+              </tr>
+            ))}
+            {!games.length ? <tr><td colSpan={20}>Recent game history unavailable.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -489,6 +531,8 @@ function PlayersSection({ analytics, prematch }: { analytics: MatchAnalyticsResp
   const profiles = analytics.player_profiles || [];
   const props = analytics.player_props || [];
   const playerFeedMissing = !profiles.length;
+  const homePlayers = playersForTeam(profiles, "home", lineups, prematch);
+  const awayPlayers = playersForTeam(profiles, "away", lineups, prematch);
   return (
     <section className="panel" id="players">
       <div className="panelHeader">
@@ -500,18 +544,9 @@ function PlayersSection({ analytics, prematch }: { analytics: MatchAnalyticsResp
         <LineupCard side="away" lineups={lineups} prematch={prematch} />
       </div>
       {playerFeedMissing ? <div className="emptyCard">Player analytics unavailable. Lineups can still render when lineup feed is present.</div> : null}
-      <div className="tableScroller">
-        <table className="comparisonTable">
-          <thead><tr><th>Player</th><th>Team</th><th>Role</th><th>PTS</th><th>REB</th><th>AST</th><th>3PM</th><th>Net</th></tr></thead>
-          <tbody>
-            {profiles.slice(0, 16).map((raw, index) => {
-              const p = asObject(raw);
-              const last5 = asObject(asObject(p.windows).last5);
-              return <tr key={String(p.player_id || p.name || index)}><td>{String(p.name || "-")}</td><td>{String(p.team_tricode || p.team || "-")}</td><td>{String(p.role_type || "-")}</td><td>{formatNum(asNumber(last5.points), 1)}</td><td>{formatNum(asNumber(last5.rebounds), 1)}</td><td>{formatNum(asNumber(last5.assists), 1)}</td><td>{formatNum(asNumber(last5.three_pm), 1)}</td><td>{formatNum(asNumber(p.net_rtg), 1)}</td></tr>;
-            })}
-            {!profiles.length ? <tr><td colSpan={8}>Player profiles unavailable.</td></tr> : null}
-          </tbody>
-        </table>
+      <div className="playersByTeam">
+        <PlayerProfileTable title="Home Player Profiles" players={homePlayers} />
+        <PlayerProfileTable title="Away Player Profiles" players={awayPlayers} />
       </div>
       <div className="tableScroller">
         <table className="comparisonTable">
@@ -527,6 +562,47 @@ function PlayersSection({ analytics, prematch }: { analytics: MatchAnalyticsResp
       </div>
     </section>
   );
+}
+
+function PlayerProfileTable({ title, players }: { title: string; players: ApiObject[] }) {
+  return (
+    <div className="teamHistory">
+      <div className="subHeader">{title}</div>
+      <div className="tableScroller">
+        <table className="comparisonTable compactTable">
+          <thead><tr><th>Player</th><th>Role</th><th>Min</th><th>USG%</th><th>Off</th><th>Def</th><th>Net</th><th>PTS</th><th>REB</th><th>AST</th><th>3PM</th></tr></thead>
+          <tbody>
+            {players.map((p, index) => {
+              const last5 = asObject(asObject(p.windows).last5);
+              return <tr key={String(p.player_id || p.name || index)}><td>{String(p.name || "-")}</td><td>{String(p.role_type || "-")}</td><td>{formatNum(asNumber(p.minutes ?? last5.minutes), 1)}</td><td>{formatNum(asNumber(p.usage ?? last5.usage), 1)}</td><td>{formatNum(asNumber(p.off_rtg), 1)}</td><td>{formatNum(asNumber(p.def_rtg), 1)}</td><td>{formatNum(asNumber(p.net_rtg), 1)}</td><td>{formatNum(asNumber(last5.points), 1)}</td><td>{formatNum(asNumber(last5.rebounds), 1)}</td><td>{formatNum(asNumber(last5.assists), 1)}</td><td>{formatNum(asNumber(last5.three_pm), 1)}</td></tr>;
+            })}
+            {!players.length ? <tr><td colSpan={11}>Player profiles unavailable.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function playersForTeam(profiles: ApiObject[], side: "home" | "away", lineups: ApiObject, prematch: PrematchResponse): ApiObject[] {
+  const lineup = asObject(lineups[side]);
+  const lineupPlayers = [
+    ...(Array.isArray(lineup.starters) ? lineup.starters : []),
+    ...(Array.isArray(lineup.bench) ? lineup.bench : []),
+    ...(prematch.players?.[side] || []),
+  ].map(asObject);
+  const ids = new Set(lineupPlayers.map((player) => String(player.player_id || "")).filter(Boolean));
+  const names = new Set(lineupPlayers.map((player) => String(player.name || player.player_name || "").toLowerCase()).filter(Boolean));
+  const filtered = profiles.map(asObject).filter((player) => {
+    const playerId = String(player.player_id || "");
+    const name = String(player.name || "").toLowerCase();
+    return ids.has(playerId) || names.has(name) || (!ids.size && !names.size && sideFromTeamCode(player.team_tricode, player.team) === side);
+  });
+  return filtered.sort((a, b) => (asNumber(b.minutes) || 0) - (asNumber(a.minutes) || 0));
+}
+
+function sideFromTeamCode(_teamTricode: unknown, _team: unknown): "home" | "away" | null {
+  return null;
 }
 
 function LineupCard({ side, lineups, prematch }: { side: "home" | "away"; lineups: ApiObject; prematch: PrematchResponse }) {
@@ -616,4 +692,15 @@ function marketLabel(key: string): string {
 function formatSigned(value: number | null | undefined): string {
   if (value == null) return "-";
   return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+}
+
+function periodResult(value: unknown): string {
+  if (value === true) return "WIN";
+  if (value === false) return "LOSS";
+  return "-";
+}
+
+function shortDate(value: unknown): string {
+  if (!value) return "-";
+  return String(value).slice(0, 10);
 }
