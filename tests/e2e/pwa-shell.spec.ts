@@ -22,7 +22,7 @@ test("match page renders legacy frozen snapshot as partial", async ({ page }) =>
   await page.goto("/match/302600684");
   await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
   await expect(page.getByText("EXP").first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "PREMATCH Bets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PREMATCH CANDIDATES" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Small Market Matrix" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Team Form" })).toBeVisible();
@@ -46,7 +46,7 @@ test("match page keeps optional live endpoint failure isolated", async ({ page }
   await page.route("**/api/backend/api/v1/public/basket/matches/302600684/live", (route) => route.abort());
   await page.goto("/match/302600684");
 
-  await expect(page.getByRole("heading", { name: "PREMATCH Bets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "PREMATCH CANDIDATES" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
 });
 

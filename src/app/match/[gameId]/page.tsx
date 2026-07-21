@@ -335,12 +335,12 @@ function ModelBoard({ models }: { models: FrozenPrematchResponse["models"] }) {
 function TopRecommendationsSection({ analytics, recs }: { analytics: MatchAnalyticsResponse; recs: RecommendationsResponse }) {
   const derived = (analytics.recommendation_candidates || []).map(asObject);
   const published = (recs.items || []).slice(0, 3);
-  const top = derived.filter((row) => ["PLAY", "LEAN", "PROFILE_LEAN", "WATCH"].includes(String(row.status))).slice(0, 5);
+  const top = derived.filter((row) => ["MODEL_PLAY_UNVALIDATED", "LEAN", "PROFILE_LEAN", "WATCH"].includes(String(row.status))).slice(0, 5);
   return (
     <section className="panel" id="top-recommendations">
       <div className="panelHeader">
-        <h2>PREMATCH Bets</h2>
-        <StatusPill label={`${published.length} PUBLIC · ${top.length} CANDIDATES`} tone={top.length ? "green" : "neutral"} />
+        <h2>PREMATCH CANDIDATES</h2>
+        <StatusPill label={`${published.length} PUBLIC BETS · ${top.length} MODEL CANDIDATES`} tone={top.length ? "green" : "neutral"} />
       </div>
       {top.length ? (
         <div className="recommendationGrid">
@@ -361,7 +361,7 @@ function RecommendationCandidateCard({ row }: { row: ApiObject }) {
     <div className={`marketMini recCard rec-${String(row.status || "pass").toLowerCase()}`}>
       <span>{marketLabel(String(row.market || "-"))} · {String(row.side || "-").toUpperCase()}</span>
       <strong>{String(row.pick || "-")} {formatNum(asNumber(row.line), 1)}</strong>
-      <small>{String(row.status || "PASS")} · score {formatNum(asNumber(row.score), 2)}</small>
+      <small>{String(row.status || "PASS")} · rank {formatNum(asNumber(row.score), 2)} · odds {formatNum(asNumber(row.odds), 2)}</small>
       <small>proj {formatNum(asNumber(row.projection), 1)} · edge {formatNum(asNumber(row.edge), 1)} · {String(row.source || "-")}</small>
       {reasons ? <small>{reasons}</small> : null}
       {risks ? <small className="riskText">{risks}</small> : null}
@@ -370,7 +370,7 @@ function RecommendationCandidateCard({ row }: { row: ApiObject }) {
 }
 
 function ProjectionMatrixSection({ analytics }: { analytics: MatchAnalyticsResponse }) {
-  const rows = (analytics.projection_matrix?.rows || []).map(asObject);
+  const rows = (analytics.projection_matrix?.rows || []).map(asObject).filter((row) => !isMainMarketMatrixRow(row));
   const conflicts = rows.filter((row) => row.source_conflict);
   return (
     <section className="panel" id="projection-matrix">
@@ -382,7 +382,7 @@ function ProjectionMatrixSection({ analytics }: { analytics: MatchAnalyticsRespo
       <div className="tableScroller">
         <table className="comparisonTable compactTable matrixTable">
           <thead>
-            <tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>Model</th><th>Profile L3/L5/L10/S</th><th>Venue/H2H</th><th>Hit L5/L10/H2H</th><th>Edge</th><th>Status</th><th>Risk</th></tr>
+            <tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>M2</th><th>M4</th><th>Consensus</th><th>Model</th><th>Profile L5/L10</th><th>Home/Away L5 · H2H</th><th>Hit L5/L10/H2H</th><th>Edge</th><th>Status</th><th>Risk</th></tr>
           </thead>
           <tbody>
             {rows.slice(0, 40).map((row, index) => {
@@ -395,8 +395,11 @@ function ProjectionMatrixSection({ analytics }: { analytics: MatchAnalyticsRespo
                   <td>{String(row.side || "-").toUpperCase()}</td>
                   <td>{formatNum(asNumber(row.line), 1)}</td>
                   <td>{String(row.pick || "-")}</td>
-                  <td>{formatProjectionList(models, ["shot_model", "consensus", "calculation"])}</td>
-                  <td>{formatProjectionList(profiles, ["last3", "last5", "last10", "season"])}</td>
+                  <td>{formatNum(asNumber(models.m2), 1)}</td>
+                  <td>{formatNum(asNumber(models.m4), 1)}</td>
+                  <td>{formatNum(asNumber(models.consensus), 1)}</td>
+                  <td>{formatProjectionList(models, ["shot_model", "calculation"])}</td>
+                  <td>{formatProjectionList(profiles, ["last5", "last10"])}</td>
                   <td>{formatProjectionList(profiles, ["venue", "h2h"])}</td>
                   <td>{formatHitRates(hit)}</td>
                   <td>{formatNum(asNumber(row.edge), 1)}</td>
@@ -405,7 +408,7 @@ function ProjectionMatrixSection({ analytics }: { analytics: MatchAnalyticsRespo
                 </tr>
               );
             })}
-            {!rows.length ? <tr><td colSpan={11}>No matrix rows.</td></tr> : null}
+            {!rows.length ? <tr><td colSpan={14}>No matrix rows.</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -599,11 +602,13 @@ function PeriodsSection({ analytics, prematch, frozen }: { analytics: MatchAnaly
         {periods.map((period) => (
           <div className="metricCard" key={period.label}>
             <span>{period.label}</span>
-            <PeriodMarketLine label="Winner" block={asObject(period.block.winner)} winner />
-            <PeriodMarketLine label="Spread" block={asObject(period.block.spread)} />
-            <PeriodMarketLine label="Total" block={asObject(period.block.total)} />
-            <PeriodMarketLine label="IT Home" block={asObject(asObject(period.block.team_totals).home)} />
-            <PeriodMarketLine label="IT Away" block={asObject(asObject(period.block.team_totals).away)} />
+            <div className="periodMarketGrid">
+              <PeriodMarketLine label="Winner" block={asObject(period.block.winner)} winner />
+              <PeriodMarketLine label="Spread" block={asObject(period.block.spread)} />
+              <PeriodMarketLine label="Total" block={asObject(period.block.total)} />
+              <PeriodMarketLine label="IT Home" block={asObject(asObject(period.block.team_totals).home)} />
+              <PeriodMarketLine label="IT Away" block={asObject(asObject(period.block.team_totals).away)} />
+            </div>
             <small>sample {formatNum(asNumber(period.profile.sample), 0)} · {String(period.profile.projection_source || "line_only")}</small>
           </div>
         ))}
@@ -836,14 +841,24 @@ function marketLabel(key: string): string {
   return key.split("_").map((part) => part ? part[0].toUpperCase() + part.slice(1) : part).join(" ");
 }
 
+function isMainMarketMatrixRow(row: ApiObject): boolean {
+  const key = String(row.key || "");
+  const market = String(row.market || "");
+  return key.startsWith("main_") || ["total", "home_team_total", "away_team_total", "spread"].includes(market);
+}
+
 function formatProjectionList(source: ApiObject, keys: string[]): string {
   const parts = keys
     .map((key) => {
       const value = asNumber(source[key]);
-      return value == null ? null : `${key.replace("last", "L").toUpperCase()} ${formatNum(value, 1)}`;
+      return value == null ? null : `${projectionLabel(key)} ${formatNum(value, 1)}`;
     })
     .filter(Boolean);
   return parts.length ? parts.join(" · ") : "-";
+}
+
+function projectionLabel(key: string): string {
+  return ({ last5: "L5", last10: "L10", venue: "H/A L5", h2h: "H2H", shot_model: "Shot model", calculation: "Calc", consensus: "Consensus", m2: "M2", m4: "M4" } as Record<string, string>)[key] || key.toUpperCase();
 }
 
 function formatHitRates(source: ApiObject): string {

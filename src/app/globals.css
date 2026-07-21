@@ -229,12 +229,13 @@ main {
 }
 
 .periodMarketRow {
-  display: grid;
-  grid-template-columns: 72px minmax(48px, auto) 1fr;
+  display: block;
+  min-width: 0;
   gap: 8px;
-  align-items: baseline;
-  padding: 5px 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #07101d;
 }
 
 .periodMarketRow span {
@@ -245,6 +246,8 @@ main {
 }
 
 .periodMarketRow strong {
+  display: block;
+  margin-top: 4px;
   font-size: 13px;
 }
 
@@ -418,6 +421,13 @@ main {
 
 .matrixTable td {
   vertical-align: top;
+}
+
+.periodMarketGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .marketMini strong,
@@ -799,6 +809,7 @@ th {
   .mainMarketTop,
   .metaGrid,
   .recommendationGrid,
+  .periodMarketGrid,
   .totalsGrid,
   .marketStrip,
   .shotGrid,
@@ -846,6 +857,7 @@ th {
   .mainMarketTop,
   .metaGrid,
   .recommendationGrid,
+  .periodMarketGrid,
   .totalsGrid,
   .marketStrip,
   .teamGrid,
