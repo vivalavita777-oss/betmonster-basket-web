@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ApiUnavailable } from "@/components/ApiUnavailable";
-import { LiveMatchCenter, LiveMatchProvider, LiveResultComparison, MatchHeroScore, SignalSummaryRail } from "@/components/match/LiveMatchCenter";
+import { LiveMatchCenter, LiveMatchProvider, LiveResultComparison, SignalSummaryRail } from "@/components/match/LiveMatchCenter";
 import { MatchJsonDownload } from "@/components/match/MatchJsonDownload";
 import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
@@ -34,19 +34,6 @@ import type {
 import { formatMatchDate, formatMatchTime } from "@/lib/time";
 
 type OptionalResult<T> = { data: T; error: string | null };
-
-const tabs = [
-  ["live-center", "Live Center"],
-  ["main-markets", "Main Markets"],
-  ["periods", "Periods"],
-  ["team-stats", "Team Stats"],
-  ["shots", "Shots"],
-  ["team-form", "Team Form"],
-  ["players", "Players"],
-  ["signals", "Signals"],
-  ["recommendations", "Recommendations"],
-  ["result", "Result"],
-] as const;
 
 const emptyPrematch: PrematchResponse = { available: false, data_quality: { reason: "prematch_unavailable" } };
 const emptyPostgame: PostgameResponse = { available: false };
@@ -84,7 +71,6 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   const displayAnalytics = selectDisplayAnalytics(match, analytics, frozen);
   const afterTipoff = isAfterTipoffStatus(match.status);
   const liveVisible = isLiveStatus(match.status);
-  const visibleTabs = tabs.filter(([id]) => liveVisible || id !== "live-center");
   const modelSource = displayAnalytics.models || frozen.models || (!afterTipoff ? prematch.models || (asObject(match.model_summary) as FrozenPrematchResponse["models"]) : asObject(match.model_summary) as FrozenPrematchResponse["models"]) || {};
   const marketSource = asObject(displayAnalytics.markets?.main || frozen.markets || (!afterTipoff ? prematch.market || match.market : match.market || {}));
   const endpointErrors = [
@@ -147,46 +133,74 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
   return (
     <LiveMatchProvider gameId={gameId} initialLive={liveSeed} initialSignals={initialSignals} initialStatus={match.status}>
     <section className="matchPage">
-      <MatchHero match={match} />
-      <nav className="tabsRow stickyTabs" aria-label="Match sections">
-        {visibleTabs.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}
-        <MatchJsonDownload payload={jsonPayload} compactPayload={compactJsonPayload} />
-      </nav>
+      <MatchHero match={match} markets={marketSource} />
 
       <section className="matchLayout">
         <div className="matchMain">
           {endpointErrors.map(([label, error]) => <EndpointNotice key={label} label={label || "Endpoint"} error={error || ""} />)}
-          {liveVisible ? <LiveMatchCenter /> : null}
-          <TopRecommendationsSection analytics={displayAnalytics} recs={recs} />
-          <MainMarketsSection markets={marketSource} models={modelSource} />
-          <ProjectionMatrixSection analytics={displayAnalytics} />
-          <PeriodsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
-          <TeamStatsSection analytics={displayAnalytics} />
-          <ShotMarketsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
-          <TeamFormSection analytics={displayAnalytics} match={match} />
-          <PlayersSection analytics={displayAnalytics} prematch={prematch} />
-          <section className="panel" id="recommendations">
-            <div className="panelHeader">
-              <h2>Recommendations</h2>
-              <StatusPill label={`${recs.count} PREMATCH BETS`} tone="neutral" />
+          <div className="matchTabs">
+            <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-lines" defaultChecked />
+            <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-form" />
+            <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-players" />
+            <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-signals" />
+            <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-recommendations" />
+            <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-result" />
+            <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-meta" />
+            <nav className="matchTabNav stickyTabs" aria-label="Match sections">
+              <label htmlFor="match-tab-lines">Line Markets</label>
+              <label htmlFor="match-tab-form">Team Form</label>
+              <label htmlFor="match-tab-players">Players</label>
+              <label htmlFor="match-tab-signals">Signals</label>
+              <label htmlFor="match-tab-recommendations">Recommendations</label>
+              <label htmlFor="match-tab-result">Result</label>
+              <label htmlFor="match-tab-meta">Meta</label>
+              <span className="tabSpacer" />
+              <MatchJsonDownload payload={jsonPayload} compactPayload={compactJsonPayload} />
+            </nav>
+            <div className="matchTabPanels">
+              <div className="matchTabPanel tabPanelLines">
+                <LineMarketsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
+              </div>
+              <div className="matchTabPanel tabPanelForm">
+                <TeamFormSection analytics={displayAnalytics} match={match} />
+              </div>
+              <div className="matchTabPanel tabPanelPlayers">
+                <PlayersSection analytics={displayAnalytics} prematch={prematch} showProps={false} />
+              </div>
+              <div className="matchTabPanel tabPanelSignals">
+                {liveVisible ? <LiveMatchCenter /> : <StaticSignalsSection signals={initialSignals} />}
+              </div>
+              <div className="matchTabPanel tabPanelRecommendations">
+                <TopRecommendationsSection analytics={displayAnalytics} recs={recs} />
+                <section className="panel" id="recommendations">
+                  <div className="panelHeader">
+                    <h2>Published Recommendations</h2>
+                    <StatusPill label={`${recs.count} PREMATCH BETS`} tone="neutral" />
+                  </div>
+                  {recs.items.length ? <RecommendationTable items={recs.items} /> : <div className="emptyCard">No published prematch recommendations yet. See Line Markets for unvalidated model candidates.</div>}
+                </section>
+              </div>
+              <div className="matchTabPanel tabPanelResult">
+                <LiveResultComparison
+                  initialPostgame={postgame}
+                  match={match}
+                  frozenItems={frozenItems}
+                  ledgerItems={recs.items}
+                  initialSignals={initialSignals}
+                />
+              </div>
+              <div className="matchTabPanel tabPanelMeta">
+                <MetaFooter
+                  analytics={displayAnalytics}
+                  frozen={frozen}
+                  prematch={prematch}
+                  match={match}
+                  signals={initialSignals}
+                  postgame={postgame}
+                />
+              </div>
             </div>
-            <RecommendationTable items={recs.items} />
-          </section>
-          <LiveResultComparison
-            initialPostgame={postgame}
-            match={match}
-            frozenItems={frozenItems}
-            ledgerItems={recs.items}
-            initialSignals={initialSignals}
-          />
-          <MetaFooter
-            analytics={displayAnalytics}
-            frozen={frozen}
-            prematch={prematch}
-            match={match}
-            signals={initialSignals}
-            postgame={postgame}
-          />
+          </div>
         </div>
       </section>
     </section>
@@ -291,18 +305,36 @@ function mergeQuality(quality: ApiObject | null | undefined, signals: SignalResp
   return { ...base, sources };
 }
 
-function MatchHero({ match }: { match: MatchDetailResponse }) {
+function MatchHero({ match, markets }: { match: MatchDetailResponse; markets: ApiObject | null | undefined }) {
+  const winner = asObject(asObject(markets).winner);
+  const homeOdds = asNumber(winner.home_odds);
+  const awayOdds = asNumber(winner.away_odds);
+  const status = String(match.status || "scheduled").toUpperCase();
+  const finished = isAfterTipoffStatus(match.status) && ["FINISHED", "FINAL", "CLOSED"].includes(status);
+  const score = match.score || { home: match.home_score, away: match.away_score };
+  const periodText = formatQuarterScores(match.quarter_scores);
+  const hasOt = (match.quarter_scores || []).length > 4;
   return (
     <header className="matchHero">
       <div>
         <div className="heroMeta">
-          <span className="league">{match.league || "Basketball"}</span>
+          <span className="league leagueChip">{match.league || "Basketball"}</span>
           <span>{formatMatchDate(match.game_date)} · {formatMatchTime(match.game_date)}</span>
         </div>
-        <h1>{match.home_team || "Home"} vs {match.away_team || "Away"}</h1>
+        <h1 className="matchTitleLine">
+          <span>{match.home_team || "Home"}</span>
+          <span className="teamOdd">{formatNum(homeOdds, 2)}</span>
+          <span className="vsText">Vs</span>
+          <span>{match.away_team || "Away"}</span>
+          <span className="teamOdd">{formatNum(awayOdds, 2)}</span>
+        </h1>
       </div>
-      <div className="scoreBoard">
-        <MatchHeroScore match={match} />
+      <div className="scoreWrap">
+        <div className="scoreLineHero">
+          <strong>{score?.home ?? "-"} : {score?.away ?? "-"}{hasOt ? " OT" : ""}</strong>
+          {periodText ? <span>({periodText})</span> : null}
+          <span className={`matchStatusChip status-${status.toLowerCase()}`}>{finished ? "FINISHED" : status}</span>
+        </div>
       </div>
     </header>
   );
@@ -366,6 +398,131 @@ function RecommendationCandidateCard({ row }: { row: ApiObject }) {
       {reasons ? <small>{reasons}</small> : null}
       {risks ? <small className="riskText">{risks}</small> : null}
     </div>
+  );
+}
+
+function LineMarketsSection({ analytics, prematch, frozen }: { analytics: MatchAnalyticsResponse; prematch: PrematchResponse; frozen: FrozenPrematchResponse }) {
+  const matrixRows = (analytics.projection_matrix?.rows || []).map(asObject);
+  const mainRows = matrixRows.filter(isMainMarketMatrixRow);
+  const shotRows = matrixRows.filter((row) => ["two_pm", "three_pm"].includes(String(row.market)));
+  const otherRows = matrixRows.filter((row) => !isMainMarketMatrixRow(row) && !["two_pm", "three_pm"].includes(String(row.market)));
+  return (
+    <section className="panel lineMarketsPanel" id="line-markets">
+      <div className="panelHeader">
+        <h2>Line Markets</h2>
+        <StatusPill label={`${matrixRows.length} MARKET ROWS`} tone="neutral" />
+      </div>
+      <div className="lineSubTabs">
+        <input className="matchTabInput" type="radio" name="line-market-tabs" id="line-tab-main" defaultChecked />
+        <input className="matchTabInput" type="radio" name="line-market-tabs" id="line-tab-shots" />
+        <input className="matchTabInput" type="radio" name="line-market-tabs" id="line-tab-other" />
+        <input className="matchTabInput" type="radio" name="line-market-tabs" id="line-tab-players" />
+        <nav className="subTabNav" aria-label="Line market groups">
+          <label htmlFor="line-tab-main">Main & Periods</label>
+          <label htmlFor="line-tab-shots">2&3 PT</label>
+          <label htmlFor="line-tab-other">Other Props</label>
+          <label htmlFor="line-tab-players">Player Points</label>
+        </nav>
+        <div className="lineTabPanels">
+          <div className="lineTabPanel linePanelMain">
+            <UnifiedMarketTable eyebrow="BOOK VS MODELS" title="Main Line" rows={mainRows} />
+            <UnifiedMarketTable eyebrow="PERIOD LINES" title="Periods" rows={periodMarketRows(analytics, prematch, frozen)} />
+          </div>
+          <div className="lineTabPanel linePanelShots">
+            <UnifiedMarketTable eyebrow="SHOT MARKETS" title="2 & 3 PT Market" rows={shotRows} />
+          </div>
+          <div className="lineTabPanel linePanelOther">
+            <UnifiedMarketTable eyebrow="TEAM STAT MARKETS" title="Other Props Market" rows={otherRows} />
+          </div>
+          <div className="lineTabPanel linePanelPlayers">
+            <PlayerPointsMarketTable props={analytics.player_props || []} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function UnifiedMarketTable({ eyebrow, title, rows }: { eyebrow: string; title: string; rows: ApiObject[] }) {
+  const conflicts = rows.filter((row) => row.source_conflict).length;
+  return (
+    <section className="sectionCard">
+      <div className="sectionHeading">
+        <div><p className="eyebrow">{eyebrow}</p><h3>{title}</h3></div>
+        <StatusPill label={`${rows.length} ROWS${conflicts ? ` · ${conflicts} CONFLICTS` : ""}`} tone={conflicts ? "purple" : "neutral"} />
+      </div>
+      <div className="tableScroller lineTableWrap">
+        <table className="comparisonTable compactTable marketLineTable">
+          <thead>
+            <tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>M2</th><th>M4</th><th>Consensus</th><th>Profile L5/L10/H2H</th><th>Hit L5/L10/H2H</th><th>Edge L5/L10/Cons</th><th>Status</th><th>Risk</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => <UnifiedMarketRow row={row} key={String(row.key || `${row.market}-${row.side}-${index}`)} />)}
+            {!rows.length ? <tr><td colSpan={12}>No line rows available.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function UnifiedMarketRow({ row }: { row: ApiObject }) {
+  const models = asObject(row.model_projections);
+  const profiles = asObject(row.profile_projections);
+  const hit = asObject(row.hit_rates);
+  const line = asNumber(row.line);
+  const consensus = asNumber(models.consensus ?? models.shot_model ?? row.projection);
+  return (
+    <tr className={row.source_conflict ? "conflictRow" : ""}>
+      <td><strong>{marketLabel(String(row.market || "-"))}</strong><small>{String(row.key || "")}</small></td>
+      <td>{String(row.side || "-").toUpperCase()}</td>
+      <td><strong>{lineText(row)}</strong><small>{oddsText(row)}</small></td>
+      <td>{pickBadge(row.pick)}</td>
+      <td>{projectionEdgeCell(asNumber(models.m2), line, row)}</td>
+      <td>{projectionEdgeCell(asNumber(models.m4), line, row)}</td>
+      <td>{projectionEdgeCell(consensus, line, row)}</td>
+      <td>{formatProjectionList(profiles, ["last5", "last10", "h2h"])}</td>
+      <td>{formatHitRates(hit)}</td>
+      <td>{edgeStack(profiles, consensus, line, row)}</td>
+      <td><span className={`statusChip ${statusClass(row.recommendation_status || row.status)}`}>{String(row.recommendation_status || row.status || "-")}</span></td>
+      <td>{riskCell(row)}</td>
+    </tr>
+  );
+}
+
+function PlayerPointsMarketTable({ props }: { props: unknown[] }) {
+  const rows = props.map(asObject).filter((row) => String(row.market || "").toUpperCase() === "POINTS");
+  return (
+    <section className="sectionCard">
+      <div className="sectionHeading">
+        <div><p className="eyebrow">PLAYER MARKETS</p><h3>Player Points</h3></div>
+        <StatusPill label={`${rows.length} ROWS`} tone="neutral" />
+      </div>
+      <div className="tableScroller lineTableWrap">
+        <table className="comparisonTable compactTable marketLineTable">
+          <thead><tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>M2</th><th>M4</th><th>Consensus</th><th>Profile L5/L10/H2H</th><th>Hit L5/L10/H2H</th><th>Edge L5/L10/Cons</th><th>Status</th><th>Risk</th></tr></thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={`${String(row.player)}-${index}`}>
+                <td><strong>{String(row.player || "-")}</strong><small>POINTS</small></td>
+                <td>{String(row.team || "-")}</td>
+                <td><strong>{formatNum(asNumber(row.line), 1)}</strong><small>O {formatNum(asNumber(row.odds_over), 2)} · U {formatNum(asNumber(row.odds_under), 2)}</small></td>
+                <td>{pickBadge(row.pick)}</td>
+                <td>-</td>
+                <td>-</td>
+                <td>{projectionEdgeCell(asNumber(row.projection), asNumber(row.line), row)}</td>
+                <td>L5 {formatNum(asNumber(row.projection), 1)}</td>
+                <td>-</td>
+                <td>Cons {formatNum(asNumber(row.edge), 1)}</td>
+                <td><span className={`statusChip ${statusClass(row.confidence)}`}>{String(row.confidence || "LINE_ONLY")}</span></td>
+                <td>{String(row.projection_source || "-")}</td>
+              </tr>
+            ))}
+            {!rows.length ? <tr><td colSpan={12}>Player points markets unavailable.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -678,7 +835,7 @@ function ShotMarketsSection({ analytics, prematch, frozen }: { analytics: MatchA
   );
 }
 
-function PlayersSection({ analytics, prematch }: { analytics: MatchAnalyticsResponse; prematch: PrematchResponse }) {
+function PlayersSection({ analytics, prematch, showProps = true }: { analytics: MatchAnalyticsResponse; prematch: PrematchResponse; showProps?: boolean }) {
   const lineups = asObject(analytics.lineups);
   const profiles = analytics.player_profiles || [];
   const props = analytics.player_props || [];
@@ -700,7 +857,7 @@ function PlayersSection({ analytics, prematch }: { analytics: MatchAnalyticsResp
         <PlayerProfileTable title="Home Player Profiles" players={homePlayers} />
         <PlayerProfileTable title="Away Player Profiles" players={awayPlayers} />
       </div>
-      <div className="tableScroller">
+      {showProps ? <div className="tableScroller">
         <table className="comparisonTable">
           <thead><tr><th>Prop</th><th>Market</th><th>Pick</th><th>Line</th><th>Odds</th><th>Projection</th><th>Edge</th><th>Status</th><th>Source</th></tr></thead>
           <tbody>
@@ -711,7 +868,7 @@ function PlayersSection({ analytics, prematch }: { analytics: MatchAnalyticsResp
             {!props.length ? <tr><td colSpan={9}>Player props unavailable.</td></tr> : null}
           </tbody>
         </table>
-      </div>
+      </div> : null}
     </section>
   );
 }
@@ -772,6 +929,30 @@ function LineupCard({ side, lineups, prematch }: { side: "home" | "away"; lineup
       <PlayerPills title="Bench" players={bench.length ? bench : fallbackPlayers.map((player) => player as unknown as ApiObject)} />
       <PlayerPills title="Out / Injured" players={out} />
     </div>
+  );
+}
+
+function StaticSignalsSection({ signals }: { signals: SignalResponse }) {
+  return (
+    <section className="panel" id="signals">
+      <div className="panelHeader">
+        <h2>Live Signals</h2>
+        <StatusPill label={`${signals.count || 0} LIVE SIGNALS`} tone="green" />
+      </div>
+      {signals.available === false ? <div className="stateBox danger">Signals temporarily unavailable.</div> : null}
+      {signals.available !== false && !signals.items.length ? <div className="emptyCard">No live signals for this match</div> : null}
+      <div className="signalGrid">
+        {signals.items.map((signal) => (
+          <div className="signalCard" key={`${signal.signal_no || signal.market}-${signal.created_at || signal.line}`}>
+            <span>{signal.market}</span>
+            <strong>{signal.selection}</strong>
+            <small>line {formatNum(signal.line, 1)} · odds {formatNum(signal.odds, 2)} · edge {formatNum(signal.edge, 1)}</small>
+            <small>{signal.status || "WATCH"} · {signal.result_status || "open"} · {formatNum(signal.profit_1u, 2)}u</small>
+            <small>{signal.created_at || "-"}</small>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -847,6 +1028,161 @@ function isMainMarketMatrixRow(row: ApiObject): boolean {
   return key.startsWith("main_") || ["total", "home_team_total", "away_team_total", "spread"].includes(market);
 }
 
+function periodMarketRows(analytics: MatchAnalyticsResponse, prematch: PrematchResponse, frozen: FrozenPrematchResponse): ApiObject[] {
+  const periodMarkets = asObject(analytics.markets?.periods);
+  if (!Object.keys(periodMarkets).length) {
+    return getQuarterProfiles(frozen, prematch).map((row) => ({
+      key: `${row.label.toLowerCase()}_total`,
+      market: `${row.label} Total`,
+      side: "total",
+      line: row.line,
+      projection: row.projection,
+      edge: row.edge,
+      pick: row.edge == null ? null : row.edge > 0 ? "OVER" : "UNDER",
+      status: "available",
+      model_projections: { consensus: row.projection },
+      profile_projections: {},
+      hit_rates: {},
+    }));
+  }
+  return Object.entries(periodMarkets).flatMap(([period, raw]) => {
+    const block = asObject(raw);
+    const winner = asObject(block.winner);
+    const spread = asObject(block.spread);
+    const total = asObject(block.total);
+    const teamTotals = asObject(block.team_totals);
+    return [
+      {
+        key: `${period}_winner`,
+        market: `${period.toUpperCase()} Winner`,
+        side: "home/away",
+        line_label: `W1 ${formatNum(asNumber(winner.home_odds), 2)} / W2 ${formatNum(asNumber(winner.away_odds), 2)}`,
+        status: winner.status || "missing",
+      },
+      {
+        key: `${period}_spread`,
+        market: `${period.toUpperCase()} Spread`,
+        side: "home/away",
+        line: asNumber(spread.home_line),
+        away_line: asNumber(spread.away_line),
+        odds_over: asNumber(spread.home_odds),
+        odds_under: asNumber(spread.away_odds),
+        projection: asNumber(spread.projection),
+        edge: asNumber(spread.edge),
+        pick: spread.pick,
+        status: spread.status || "line_only",
+        model_projections: { consensus: asNumber(spread.projection) },
+        profile_projections: {},
+        hit_rates: {},
+      },
+      {
+        key: `${period}_total`,
+        market: `${period.toUpperCase()} Total`,
+        side: "total",
+        ...total,
+        model_projections: { consensus: asNumber(total.projection) },
+        profile_projections: {},
+        hit_rates: {},
+      },
+      {
+        key: `${period}_it_home`,
+        market: `${period.toUpperCase()} Home Total`,
+        side: "home",
+        ...asObject(teamTotals.home),
+        model_projections: { consensus: asNumber(asObject(teamTotals.home).projection) },
+        profile_projections: {},
+        hit_rates: {},
+      },
+      {
+        key: `${period}_it_away`,
+        market: `${period.toUpperCase()} Away Total`,
+        side: "away",
+        ...asObject(teamTotals.away),
+        model_projections: { consensus: asNumber(asObject(teamTotals.away).projection) },
+        profile_projections: {},
+        hit_rates: {},
+      },
+    ].map(asObject);
+  });
+}
+
+function lineText(row: ApiObject): string {
+  if (row.line_label) return String(row.line_label);
+  const line = asNumber(row.line);
+  const awayLine = asNumber(row.away_line);
+  if (awayLine != null && String(row.side).includes("home/away")) return `${formatSigned(line)} / ${formatSigned(awayLine)}`;
+  return formatNum(line, 1);
+}
+
+function oddsText(row: ApiObject): string {
+  const over = asNumber(row.odds_over);
+  const under = asNumber(row.odds_under);
+  const odds = asNumber(row.odds);
+  if (over != null || under != null) return `O ${formatNum(over, 2)} · U ${formatNum(under, 2)}`;
+  return odds == null ? "" : `odds ${formatNum(odds, 2)}`;
+}
+
+function pickBadge(value: unknown): ReactNode {
+  const text = String(value || "-");
+  const lower = text.toLowerCase();
+  const cls = lower.includes("over") || lower.includes("home") ? "pick-over" : lower.includes("under") || lower.includes("away") ? "pick-under" : "";
+  return <span className={`pickChip ${cls}`}>{text}</span>;
+}
+
+function projectionEdgeCell(value: number | null, line: number | null, row: ApiObject): ReactNode {
+  if (value == null) return "-";
+  const edge = projectionEdge(value, line, row);
+  return <span className="projectionCell"><span>{formatNum(value, 1)}</span>{edgeBadge(edge)}</span>;
+}
+
+function projectionEdge(value: number | null, line: number | null, row: ApiObject): number | null {
+  if (value == null || line == null) return null;
+  if (String(row.market || "").toLowerCase().includes("spread")) {
+    return String(row.side || "").toLowerCase().includes("away") ? round1(-value + line) : round1(value + line);
+  }
+  return round1(value - line);
+}
+
+function edgeBadge(edge: number | null): ReactNode {
+  if (edge == null) return null;
+  return <span className={`edgeBadge ${edgeClass(edge)}`}>{edge > 0 ? "+" : ""}{formatNum(edge, 1)}</span>;
+}
+
+function edgeClass(edge: number): string {
+  if (edge >= 2.51) return "edgeStrongPos";
+  if (edge >= 1.01) return "edgeMedPos";
+  if (edge <= -2.51) return "edgeStrongNeg";
+  if (edge <= -1.01) return "edgeMedNeg";
+  return "edgeNeutral";
+}
+
+function edgeStack(profiles: ApiObject, consensus: number | null, line: number | null, row: ApiObject): string {
+  const l5 = projectionEdge(asNumber(profiles.last5), line, row);
+  const l10 = projectionEdge(asNumber(profiles.last10), line, row);
+  const cons = projectionEdge(consensus, line, row);
+  return `L5 ${formatNum(l5, 1)} / L10 ${formatNum(l10, 1)} / Cons ${formatNum(cons, 1)}`;
+}
+
+function statusClass(value: unknown): string {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("play")) return "statusPlay";
+  if (text.includes("lean")) return "statusLean";
+  if (text.includes("watch")) return "statusWatch";
+  if (text.includes("missing") || text.includes("blocked")) return "statusMissing";
+  return "statusNeutral";
+}
+
+function riskCell(row: ApiObject): ReactNode {
+  if (row.source_conflict) return <span className="riskChip">MODEL/PROFILE</span>;
+  const risks = Array.isArray(row.risk_codes) ? row.risk_codes.map(String) : [];
+  if (risks.length) return risks.slice(0, 3).map((risk) => <span className="riskChip" key={risk}>{risk}</span>);
+  return String(row.sample_quality || "-").toUpperCase();
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 function formatProjectionList(source: ApiObject, keys: string[]): string {
   const parts = keys
     .map((key) => {
@@ -873,6 +1209,14 @@ function formatHitRates(source: ApiObject): string {
 function formatSigned(value: number | null | undefined): string {
   if (value == null) return "-";
   return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+}
+
+function formatQuarterScores(scores: MatchDetailResponse["quarter_scores"]): string {
+  const rows = Array.isArray(scores) ? scores : [];
+  return rows
+    .filter((row) => row.home != null || row.away != null)
+    .map((row) => `${row.home ?? "-"}-${row.away ?? "-"}`)
+    .join(" · ");
 }
 
 function periodResult(value: unknown): string {

@@ -148,25 +148,124 @@ main {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 
 .matchHero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
-  align-items: center;
+  align-items: end;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #0a1728;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(14, 34, 53, 0.94), rgba(8, 25, 40, 0.94));
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.24);
 }
 
 .heroMeta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   color: var(--muted);
   margin-bottom: 8px;
+}
+
+.matchTitleLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.leagueChip {
+  border-color: #f97316;
+  background: #f97316;
+  color: #fff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.teamOdd {
+  font-size: 13px;
+  color: #d9fbe6;
+  background: #102c20;
+  border: 1px solid #235c3d;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.vsText {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scoreWrap {
+  text-align: right;
+}
+
+.scoreLineHero {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.scoreLineHero strong {
+  font-size: 27px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.scoreLineHero span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.matchStatusChip,
+.statusChip,
+.riskChip,
+.pickChip,
+.edgeBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.matchStatusChip {
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  color: #fff !important;
+  font-size: 10px !important;
+}
+
+.status-finished,
+.status-final,
+.status-closed {
+  background: #16a34a;
+}
+
+.status-scheduled {
+  background: #475569;
+}
+
+.status-live,
+.status-in_progress,
+.status-inprogress,
+.status-playing {
+  background: #ef4444;
 }
 
 .scoreBoard {
@@ -221,6 +320,269 @@ main {
 .tabActionButton:hover {
   border-color: #93c5fd;
   color: #eff6ff;
+}
+
+.matchTabInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.matchTabs,
+.matchTabPanels,
+.matchTabPanel,
+.lineSubTabs,
+.lineTabPanels,
+.lineTabPanel,
+.sectionCard,
+.tableScroller {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.matchTabNav,
+.subTabNav {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  align-items: center;
+}
+
+.matchTabNav {
+  border-bottom: 1px solid var(--line);
+}
+
+.matchTabNav label,
+.subTabNav label {
+  cursor: pointer;
+  color: var(--muted);
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  padding: 9px 13px;
+}
+
+.matchTabNav label:hover,
+.subTabNav label:hover {
+  color: var(--text);
+  background: #10243d;
+}
+
+.tabSpacer {
+  flex: 1;
+}
+
+.matchTabPanel,
+.lineTabPanel {
+  display: none;
+  padding-top: 14px;
+}
+
+#match-tab-lines:checked ~ .matchTabNav label[for="match-tab-lines"],
+#match-tab-form:checked ~ .matchTabNav label[for="match-tab-form"],
+#match-tab-players:checked ~ .matchTabNav label[for="match-tab-players"],
+#match-tab-signals:checked ~ .matchTabNav label[for="match-tab-signals"],
+#match-tab-recommendations:checked ~ .matchTabNav label[for="match-tab-recommendations"],
+#match-tab-result:checked ~ .matchTabNav label[for="match-tab-result"],
+#match-tab-meta:checked ~ .matchTabNav label[for="match-tab-meta"],
+#line-tab-main:checked ~ .subTabNav label[for="line-tab-main"],
+#line-tab-shots:checked ~ .subTabNav label[for="line-tab-shots"],
+#line-tab-other:checked ~ .subTabNav label[for="line-tab-other"],
+#line-tab-players:checked ~ .subTabNav label[for="line-tab-players"] {
+  color: #04130b;
+  background: #22c55e;
+}
+
+#match-tab-lines:checked ~ .matchTabPanels .tabPanelLines,
+#match-tab-form:checked ~ .matchTabPanels .tabPanelForm,
+#match-tab-players:checked ~ .matchTabPanels .tabPanelPlayers,
+#match-tab-signals:checked ~ .matchTabPanels .tabPanelSignals,
+#match-tab-recommendations:checked ~ .matchTabPanels .tabPanelRecommendations,
+#match-tab-result:checked ~ .matchTabPanels .tabPanelResult,
+#match-tab-meta:checked ~ .matchTabPanels .tabPanelMeta,
+#line-tab-main:checked ~ .lineTabPanels .linePanelMain,
+#line-tab-shots:checked ~ .lineTabPanels .linePanelShots,
+#line-tab-other:checked ~ .lineTabPanels .linePanelOther,
+#line-tab-players:checked ~ .lineTabPanels .linePanelPlayers {
+  display: block;
+}
+
+.lineSubTabs {
+  display: grid;
+  gap: 12px;
+}
+
+.subTabNav {
+  width: fit-content;
+  max-width: 100%;
+  background: #071622;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 4px;
+}
+
+.subTabNav label {
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 8px 12px;
+}
+
+.sectionCard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(14, 34, 53, 0.94), rgba(8, 25, 40, 0.94));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.sectionHeading h3 {
+  margin: 2px 0 0;
+  font-size: 16px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #6f8ba2;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  font-weight: 900;
+}
+
+.lineTableWrap {
+  border: 1px solid #183247;
+  border-radius: 9px;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.marketLineTable {
+  min-width: 1180px;
+}
+
+.marketLineTable th {
+  color: #69869d;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.marketLineTable td {
+  font-size: 11px;
+  vertical-align: top;
+}
+
+.marketLineTable td small {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  margin-top: 3px;
+}
+
+.marketLineTable tbody tr:hover {
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.projectionCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 900;
+}
+
+.edgeBadge {
+  padding: 4px 6px;
+  color: #fff;
+  font-size: 9px;
+}
+
+.edgeNeutral {
+  background: #20384a;
+}
+
+.edgeMedPos {
+  background: #1d5b38;
+}
+
+.edgeStrongPos {
+  background: #08783c;
+}
+
+.edgeMedNeg {
+  background: #7a294c;
+}
+
+.edgeStrongNeg {
+  background: #b91c1c;
+}
+
+.pickChip {
+  padding: 5px 7px;
+  font-size: 9px;
+}
+
+.pick-over {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.pick-under {
+  background: rgba(168, 85, 247, 0.17);
+  color: #d8b4fe;
+}
+
+.statusChip {
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  font-size: 10px;
+}
+
+.statusPlay {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #86efac;
+}
+
+.statusLean {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #7dd3fc;
+}
+
+.statusWatch {
+  background: rgba(245, 158, 11, 0.13);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fcd34d;
+}
+
+.statusMissing {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.statusNeutral {
+  background: #12283a;
+  border-color: #294a62;
+  color: #b8c9d8;
+}
+
+.riskChip {
+  padding: 4px 7px;
+  margin: 0 4px 4px 0;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.27);
+  color: #fca5a5;
+  font-size: 9px;
 }
 
 .periodCell {

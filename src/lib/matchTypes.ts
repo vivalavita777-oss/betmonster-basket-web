@@ -17,6 +17,7 @@ export type MatchDetailResponse = {
   home_score?: number | null;
   away_score?: number | null;
   score?: ScoreBlock | null;
+  quarter_scores?: Array<{ period?: string | number | null; home?: number | null; away?: number | null }> | null;
   flags?: { has_live?: boolean; has_postgame?: boolean; has_signals?: boolean } | null;
   market?: ApiObject | null;
   model_summary?: ApiObject | null;

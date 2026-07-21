@@ -20,19 +20,24 @@ test("offline page renders", async ({ page }) => {
 
 test("match page renders legacy frozen snapshot as partial", async ({ page }) => {
   await page.goto("/match/302600684");
-  await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
-  await expect(page.getByText("EXP").first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "PREMATCH CANDIDATES" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Small Market Matrix" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Main Line" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Periods" })).toBeVisible();
+  await page.locator('label[for="line-tab-shots"]').click();
+  await expect(page.getByRole("heading", { name: "2 & 3 PT Market" })).toBeVisible();
+  await page.locator('label[for="match-tab-form"]').click();
   await expect(page.getByRole("heading", { name: "Team Form" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Shots" })).toBeVisible();
+  await page.locator('label[for="match-tab-meta"]').click();
+  await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
+  await expect(page.getByText("Calculation revision")).toBeVisible();
+  await page.locator('label[for="match-tab-result"]').click();
   await expect(page.getByRole("heading", { name: "Result comparison" })).toBeVisible();
   await expect(page.getByRole("row", { name: /IT Away UNDER 102\.5/ }).last()).toBeVisible();
 });
 
 test("match page renders partial frozen fallback", async ({ page }) => {
   await page.goto("/match/302601098");
+  await page.locator('label[for="match-tab-meta"]').click();
   await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
 });
 
@@ -46,8 +51,8 @@ test("match page keeps optional live endpoint failure isolated", async ({ page }
   await page.route("**/api/backend/api/v1/public/basket/matches/302600684/live", (route) => route.abort());
   await page.goto("/match/302600684");
 
-  await expect(page.getByRole("heading", { name: "PREMATCH CANDIDATES" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Main Line" })).toBeVisible();
 });
 
 test("match page updates live score and signals from client polling", async ({ page }) => {
@@ -92,7 +97,8 @@ test("match page updates live score and signals from client polling", async ({ p
   });
 
   await page.goto("/match/1022600187");
-  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
+  await page.locator('label[for="match-tab-signals"]').click();
   if (await page.locator("#live-center").count()) {
     await expect(page.getByText("10 : 9")).toBeVisible();
     await expect(page.locator("#live-center").getByText("Home 3PM", { exact: true })).toBeVisible();
@@ -169,7 +175,8 @@ test("scheduled match transitions live to finished and updates result without re
   });
 
   await page.goto("/match/1022600187");
-  await expect(page.getByRole("heading", { name: "Main Markets", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
+  await page.locator('label[for="match-tab-signals"]').click();
   if (await page.locator("#live-center").count()) {
     await expect(page.locator(".scoreBoard strong").first()).toHaveText("10");
     await expect(page.locator("#live-center").getByText("10 : 9")).toBeVisible();
@@ -177,6 +184,7 @@ test("scheduled match transitions live to finished and updates result without re
     await expect(page.getByText("POLLING STOPPED")).toBeVisible();
     await expect(page.locator(".scoreBoard strong").first()).toHaveText("12");
     await expect(page.locator("#live-center").getByText("12 : 9")).toBeVisible();
+    await page.locator('label[for="match-tab-result"]').click();
     await expect(page.locator("#result").getByText("SETTLEMENT PENDING", { exact: true })).toBeVisible();
     await expect(page.locator("#result").getByText("FINAL SCORE AVAILABLE", { exact: true })).toBeVisible({ timeout: 7000 });
     await expect(page.getByRole("row", { name: /Total OVER 166\.5 .* 172\.0 WIN 0\.91/ })).toBeVisible();
