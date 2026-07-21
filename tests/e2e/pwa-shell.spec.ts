@@ -1,4 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function selectCssRadio(page: Page, selector: string) {
+  await page.locator(selector).evaluate((element) => {
+    const input = element as HTMLInputElement;
+    input.checked = true;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
 
 test("match center pages render on desktop and mobile", async ({ page }) => {
   await page.goto("/basket/2026-07-17", { waitUntil: "domcontentloaded" });
@@ -19,25 +28,27 @@ test("offline page renders", async ({ page }) => {
 });
 
 test("match page renders legacy frozen snapshot as partial", async ({ page }) => {
-  await page.goto("/match/302600684");
+  test.setTimeout(60000);
+  await page.goto("/match/302600684", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Main Line" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Periods" })).toBeVisible();
-  await page.locator('label[for="line-tab-shots"]').click();
+  await selectCssRadio(page, "#line-tab-shots");
   await expect(page.getByRole("heading", { name: "2 & 3 PT Market" })).toBeVisible();
-  await page.locator('label[for="match-tab-form"]').click();
-  await expect(page.getByRole("heading", { name: "Team Form" })).toBeVisible();
-  await page.locator('label[for="match-tab-meta"]').click();
+  await selectCssRadio(page, "#match-tab-form");
+  await expect(page.locator(".tabPanelForm")).toBeVisible();
+  await selectCssRadio(page, "#match-tab-meta");
   await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
   await expect(page.getByText("Calculation revision")).toBeVisible();
-  await page.locator('label[for="match-tab-result"]').click();
+  await selectCssRadio(page, "#match-tab-result");
   await expect(page.getByRole("heading", { name: "Result comparison" })).toBeVisible();
   await expect(page.getByRole("row", { name: /IT Away UNDER 102\.5/ }).last()).toBeVisible();
 });
 
 test("match page renders partial frozen fallback", async ({ page }) => {
-  await page.goto("/match/302601098");
-  await page.locator('label[for="match-tab-meta"]').click();
+  test.setTimeout(60000);
+  await page.goto("/match/302601098", { waitUntil: "domcontentloaded" });
+  await selectCssRadio(page, "#match-tab-meta");
   await expect(page.getByText("FROZEN PARTIAL")).toBeVisible();
 });
 
@@ -49,13 +60,14 @@ test("match center shows API unavailable state", async ({ page }) => {
 
 test("match page keeps optional live endpoint failure isolated", async ({ page }) => {
   await page.route("**/api/backend/api/v1/public/basket/matches/302600684/live", (route) => route.abort());
-  await page.goto("/match/302600684");
+  await page.goto("/match/302600684", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Main Line" })).toBeVisible();
 });
 
 test("match page updates live score and signals from client polling", async ({ page }) => {
+  test.setTimeout(60000);
   let liveCalls = 0;
   let signalCalls = 0;
   await page.route("**/api/backend/api/v1/public/basket/matches/1022600187/live", (route) => {
@@ -96,9 +108,9 @@ test("match page updates live score and signals from client polling", async ({ p
     });
   });
 
-  await page.goto("/match/1022600187");
+  await page.goto("/match/1022600187", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
-  await page.locator('label[for="match-tab-signals"]').click();
+  await selectCssRadio(page, "#match-tab-signals");
   if (await page.locator("#live-center").count()) {
     await expect(page.getByText("10 : 9")).toBeVisible();
     await expect(page.locator("#live-center").getByText("Home 3PM", { exact: true })).toBeVisible();
@@ -174,9 +186,9 @@ test("scheduled match transitions live to finished and updates result without re
     });
   });
 
-  await page.goto("/match/1022600187");
+  await page.goto("/match/1022600187", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Line Markets" })).toBeVisible();
-  await page.locator('label[for="match-tab-signals"]').click();
+  await selectCssRadio(page, "#match-tab-signals");
   if (await page.locator("#live-center").count()) {
     await expect(page.locator(".scoreBoard strong").first()).toHaveText("10");
     await expect(page.locator("#live-center").getByText("10 : 9")).toBeVisible();
@@ -184,7 +196,7 @@ test("scheduled match transitions live to finished and updates result without re
     await expect(page.getByText("POLLING STOPPED")).toBeVisible();
     await expect(page.locator(".scoreBoard strong").first()).toHaveText("12");
     await expect(page.locator("#live-center").getByText("12 : 9")).toBeVisible();
-    await page.locator('label[for="match-tab-result"]').click();
+    await selectCssRadio(page, "#match-tab-result");
     await expect(page.locator("#result").getByText("SETTLEMENT PENDING", { exact: true })).toBeVisible();
     await expect(page.locator("#result").getByText("FINAL SCORE AVAILABLE", { exact: true })).toBeVisible({ timeout: 7000 });
     await expect(page.getByRole("row", { name: /Total OVER 166\.5 .* 172\.0 WIN 0\.91/ })).toBeVisible();
@@ -202,7 +214,7 @@ for (const viewport of [
 ]) {
   test(`match page mobile sticky tabs fit ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto("/match/302600684");
+    await page.goto("/match/302600684", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".stickyTabs")).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);

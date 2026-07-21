@@ -159,7 +159,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
             </nav>
             <div className="matchTabPanels">
               <div className="matchTabPanel tabPanelLines">
-                <LineMarketsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} />
+                <LineMarketsSection analytics={displayAnalytics} prematch={prematch} frozen={frozen} match={match} />
               </div>
               <div className="matchTabPanel tabPanelForm">
                 <TeamFormSection analytics={displayAnalytics} match={match} />
@@ -401,9 +401,9 @@ function RecommendationCandidateCard({ row }: { row: ApiObject }) {
   );
 }
 
-function LineMarketsSection({ analytics, prematch, frozen }: { analytics: MatchAnalyticsResponse; prematch: PrematchResponse; frozen: FrozenPrematchResponse }) {
+function LineMarketsSection({ analytics, prematch, frozen, match }: { analytics: MatchAnalyticsResponse; prematch: PrematchResponse; frozen: FrozenPrematchResponse; match: MatchDetailResponse }) {
   const matrixRows = (analytics.projection_matrix?.rows || []).map(asObject);
-  const mainRows = matrixRows.filter(isMainMarketMatrixRow);
+  const mainRows = matrixRows.filter(isMainMarketMatrixRow).map((row) => enrichMainMarketRow(row, analytics));
   const shotRows = matrixRows.filter((row) => ["two_pm", "three_pm"].includes(String(row.market)));
   const otherRows = matrixRows.filter((row) => !isMainMarketMatrixRow(row) && !["two_pm", "three_pm"].includes(String(row.market)));
   return (
@@ -425,17 +425,17 @@ function LineMarketsSection({ analytics, prematch, frozen }: { analytics: MatchA
         </nav>
         <div className="lineTabPanels">
           <div className="lineTabPanel linePanelMain">
-            <UnifiedMarketTable eyebrow="BOOK VS MODELS" title="Main Line" rows={mainRows} />
-            <UnifiedMarketTable eyebrow="PERIOD LINES" title="Periods" rows={periodMarketRows(analytics, prematch, frozen)} />
+            <UnifiedMarketTable eyebrow="BOOK VS MODELS" title="Main Line" rows={mainRows} match={match} />
+            <UnifiedMarketTable eyebrow="PERIOD LINES" title="Periods" rows={periodMarketRows(analytics, prematch, frozen)} match={match} />
           </div>
           <div className="lineTabPanel linePanelShots">
-            <UnifiedMarketTable eyebrow="SHOT MARKETS" title="2 & 3 PT Market" rows={shotRows} />
+            <UnifiedMarketTable eyebrow="SHOT MARKETS" title="2 & 3 PT Market" rows={shotRows} match={match} />
           </div>
           <div className="lineTabPanel linePanelOther">
-            <UnifiedMarketTable eyebrow="TEAM STAT MARKETS" title="Other Props Market" rows={otherRows} />
+            <ProfileMarketTable eyebrow="TEAM STAT MARKETS" title="Other Props Market" rows={otherRows} match={match} />
           </div>
           <div className="lineTabPanel linePanelPlayers">
-            <PlayerPointsMarketTable props={analytics.player_props || []} />
+            <PlayerPointsMarketTable props={analytics.player_props || []} match={match} />
           </div>
         </div>
       </div>
@@ -443,7 +443,7 @@ function LineMarketsSection({ analytics, prematch, frozen }: { analytics: MatchA
   );
 }
 
-function UnifiedMarketTable({ eyebrow, title, rows }: { eyebrow: string; title: string; rows: ApiObject[] }) {
+function UnifiedMarketTable({ eyebrow, title, rows, match }: { eyebrow: string; title: string; rows: ApiObject[]; match: MatchDetailResponse }) {
   const conflicts = rows.filter((row) => row.source_conflict).length;
   return (
     <section className="sectionCard">
@@ -454,11 +454,11 @@ function UnifiedMarketTable({ eyebrow, title, rows }: { eyebrow: string; title: 
       <div className="tableScroller lineTableWrap">
         <table className="comparisonTable compactTable marketLineTable">
           <thead>
-            <tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>M2</th><th>M4</th><th>Consensus</th><th>Profile L5/L10/H2H</th><th>Hit L5/L10/H2H</th><th>Edge L5/L10/Cons</th><th>Status</th><th>Risk</th></tr>
+            <tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>Result</th><th>M2</th><th>M4</th><th>Consensus</th><th>Profile L5/L10/H2H</th><th>Hit L5/L10/H2H</th><th>Edge L5/L10/Cons</th><th>Status</th><th>Risk</th></tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => <UnifiedMarketRow row={row} key={String(row.key || `${row.market}-${row.side}-${index}`)} />)}
-            {!rows.length ? <tr><td colSpan={12}>No line rows available.</td></tr> : null}
+            {rows.map((row, index) => <UnifiedMarketRow row={row} match={match} key={String(row.key || `${row.market}-${row.side}-${index}`)} />)}
+            {!rows.length ? <tr><td colSpan={13}>No line rows available.</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -466,7 +466,7 @@ function UnifiedMarketTable({ eyebrow, title, rows }: { eyebrow: string; title: 
   );
 }
 
-function UnifiedMarketRow({ row }: { row: ApiObject }) {
+function UnifiedMarketRow({ row, match }: { row: ApiObject; match: MatchDetailResponse }) {
   const models = asObject(row.model_projections);
   const profiles = asObject(row.profile_projections);
   const hit = asObject(row.hit_rates);
@@ -478,6 +478,7 @@ function UnifiedMarketRow({ row }: { row: ApiObject }) {
       <td>{String(row.side || "-").toUpperCase()}</td>
       <td><strong>{lineText(row)}</strong><small>{oddsText(row)}</small></td>
       <td>{pickBadge(row.pick)}</td>
+      <td>{resultBadge(marketResult(row, match))}</td>
       <td>{projectionEdgeCell(asNumber(models.m2), line, row)}</td>
       <td>{projectionEdgeCell(asNumber(models.m4), line, row)}</td>
       <td>{projectionEdgeCell(consensus, line, row)}</td>
@@ -490,7 +491,50 @@ function UnifiedMarketRow({ row }: { row: ApiObject }) {
   );
 }
 
-function PlayerPointsMarketTable({ props }: { props: unknown[] }) {
+function ProfileMarketTable({ eyebrow, title, rows, match }: { eyebrow: string; title: string; rows: ApiObject[]; match: MatchDetailResponse }) {
+  const conflicts = rows.filter((row) => row.source_conflict).length;
+  return (
+    <section className="sectionCard">
+      <div className="sectionHeading">
+        <div><p className="eyebrow">{eyebrow}</p><h3>{title}</h3></div>
+        <StatusPill label={`${rows.length} ROWS${conflicts ? ` · ${conflicts} CONFLICTS` : ""}`} tone={conflicts ? "purple" : "neutral"} />
+      </div>
+      <div className="tableScroller lineTableWrap">
+        <table className="comparisonTable compactTable marketLineTable profileMarketTable">
+          <thead>
+            <tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>Result</th><th>Profile L5/L10/H2H</th><th>Hit L5/L10/H2H</th><th>Edge L5/L10/H2H</th><th>Status</th><th>Risk</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => <ProfileMarketRow row={row} match={match} key={String(row.key || `${row.market}-${row.side}-${index}`)} />)}
+            {!rows.length ? <tr><td colSpan={10}>No profile rows available.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ProfileMarketRow({ row, match }: { row: ApiObject; match: MatchDetailResponse }) {
+  const profiles = asObject(row.profile_projections);
+  const hit = asObject(row.hit_rates);
+  const line = asNumber(row.line);
+  return (
+    <tr className={row.source_conflict ? "conflictRow" : ""}>
+      <td><strong>{marketLabel(String(row.market || "-"))}</strong><small>{String(row.key || "")}</small></td>
+      <td>{String(row.side || "-").toUpperCase()}</td>
+      <td><strong>{lineText(row)}</strong><small>{oddsText(row)}</small></td>
+      <td>{pickBadge(row.pick)}</td>
+      <td>{resultBadge(marketResult(row, match))}</td>
+      <td>{formatProjectionList(profiles, ["last5", "last10", "h2h"])}</td>
+      <td>{formatHitRates(hit)}</td>
+      <td>{profileEdgeStack(profiles, line, row)}</td>
+      <td><span className={`statusChip ${statusClass(row.recommendation_status || row.status)}`}>{String(row.recommendation_status || row.status || "-")}</span></td>
+      <td>{riskCell(row)}</td>
+    </tr>
+  );
+}
+
+function PlayerPointsMarketTable({ props, match }: { props: unknown[]; match: MatchDetailResponse }) {
   const rows = props.map(asObject).filter((row) => String(row.market || "").toUpperCase() === "POINTS");
   return (
     <section className="sectionCard">
@@ -499,8 +543,8 @@ function PlayerPointsMarketTable({ props }: { props: unknown[] }) {
         <StatusPill label={`${rows.length} ROWS`} tone="neutral" />
       </div>
       <div className="tableScroller lineTableWrap">
-        <table className="comparisonTable compactTable marketLineTable">
-          <thead><tr><th>Market</th><th>Side</th><th>Line</th><th>Pick</th><th>M2</th><th>M4</th><th>Consensus</th><th>Profile L5/L10/H2H</th><th>Hit L5/L10/H2H</th><th>Edge L5/L10/Cons</th><th>Status</th><th>Risk</th></tr></thead>
+        <table className="comparisonTable compactTable marketLineTable profileMarketTable">
+          <thead><tr><th>Player</th><th>Team</th><th>Line</th><th>Pick</th><th>Result</th><th>Profile L5/L10/H2H</th><th>Hit L5/L10/H2H</th><th>Edge L5/L10/H2H</th><th>Status</th><th>Source</th></tr></thead>
           <tbody>
             {rows.map((row, index) => (
               <tr key={`${String(row.player)}-${index}`}>
@@ -508,17 +552,15 @@ function PlayerPointsMarketTable({ props }: { props: unknown[] }) {
                 <td>{String(row.team || "-")}</td>
                 <td><strong>{formatNum(asNumber(row.line), 1)}</strong><small>O {formatNum(asNumber(row.odds_over), 2)} · U {formatNum(asNumber(row.odds_under), 2)}</small></td>
                 <td>{pickBadge(row.pick)}</td>
+                <td>{resultBadge(marketResult(row, match))}</td>
+                <td>L5 {formatNum(asNumber(row.projection), 1)} / L10 - / H2H -</td>
                 <td>-</td>
-                <td>-</td>
-                <td>{projectionEdgeCell(asNumber(row.projection), asNumber(row.line), row)}</td>
-                <td>L5 {formatNum(asNumber(row.projection), 1)}</td>
-                <td>-</td>
-                <td>Cons {formatNum(asNumber(row.edge), 1)}</td>
+                <td>L5 {formatNum(asNumber(row.edge), 1)} / L10 - / H2H -</td>
                 <td><span className={`statusChip ${statusClass(row.confidence)}`}>{String(row.confidence || "LINE_ONLY")}</span></td>
                 <td>{String(row.projection_source || "-")}</td>
               </tr>
             ))}
-            {!rows.length ? <tr><td colSpan={12}>Player points markets unavailable.</td></tr> : null}
+            {!rows.length ? <tr><td colSpan={10}>Player points markets unavailable.</td></tr> : null}
           </tbody>
         </table>
       </div>
@@ -630,7 +672,6 @@ function TeamFormSection({ analytics, match }: { analytics: MatchAnalyticsRespon
   const reason = !Object.keys(profiles).length ? "Team profile source unavailable for this match." : null;
   return (
     <section className="panel" id="team-form">
-      <div className="panelHeader"><h2>Team Form</h2><StatusPill label="LAST 3 / 5 / 10 / SEASON" tone="neutral" /></div>
       {reason ? <div className="emptyCard">{reason}</div> : null}
       <div className="teamGrid teamFormList">
         <TeamCard side="Home" name={match.home_team || "Home"} profile={asObject(profiles.home)} />
@@ -652,7 +693,7 @@ function TeamCard({ side, name, profile }: { side: string; name: string; profile
         {splits.map(([key, value], index) => (
           <label key={key}>
             <input type="radio" name={group} defaultChecked={index === 0} />
-            <span>{key.toUpperCase()} {formatNum(asNumber(asObject(value.last5).games), 0)}</span>
+            <span>{key.toUpperCase()}</span>
           </label>
         ))}
       </div>
@@ -1028,6 +1069,109 @@ function isMainMarketMatrixRow(row: ApiObject): boolean {
   return key.startsWith("main_") || ["total", "home_team_total", "away_team_total", "spread"].includes(market);
 }
 
+function enrichMainMarketRow(row: ApiObject, analytics: MatchAnalyticsResponse): ApiObject {
+  const profiles = asObject(row.profile_projections);
+  if (Object.keys(profiles).length) return row;
+  const line = asNumber(row.line);
+  const market = String(row.market || "");
+  const side = String(row.side || "");
+  const profileSource = mainProfileValues(market, side, analytics);
+  const h2hGames = Array.isArray(analytics.h2h_games) ? analytics.h2h_games.map(asObject) : [];
+  const homeProfile = asObject(asObject(analytics.team_profiles).home);
+  const awayProfile = asObject(asObject(analytics.team_profiles).away);
+  const homeRecentRaw = homeProfile.recent_games;
+  const awayRecentRaw = awayProfile.recent_games;
+  const homeRecent = Array.isArray(homeRecentRaw) ? homeRecentRaw.map(asObject) : [];
+  const awayRecent = Array.isArray(awayRecentRaw) ? awayRecentRaw.map(asObject) : [];
+  const hitRates = mainHitRates(market, side, row.pick, line, homeRecent, awayRecent, h2hGames);
+  return { ...row, profile_projections: profileSource, hit_rates: hitRates };
+}
+
+function mainProfileValues(market: string, side: string, analytics: MatchAnalyticsResponse): ApiObject {
+  const profiles = asObject(analytics.team_profiles);
+  const homeWindows = asObject(asObject(profiles.home).windows);
+  const awayWindows = asObject(asObject(profiles.away).windows);
+  const h2hGames = Array.isArray(analytics.h2h_games) ? analytics.h2h_games.map(asObject) : [];
+  const profileFor = (split: string, window: string) => asObject(asObject(split === "home" ? homeWindows.overall : awayWindows.overall)[window]);
+  const totalFor = (window: string) => sumNullable(asNumber(profileFor("home", window).points), asNumber(profileFor("away", window).points));
+  const homeFor = (window: string) => asNumber(profileFor("home", window).points);
+  const awayFor = (window: string) => asNumber(profileFor("away", window).points);
+  const spreadFor = (window: string) => {
+    const home = homeFor(window);
+    const away = awayFor(window);
+    return home == null || away == null ? null : round1(home - away);
+  };
+  const h2hValue = h2hProjection(market, side, h2hGames);
+  if (market === "total") return { last5: totalFor("last5"), last10: totalFor("last10"), h2h: h2hValue };
+  if (market === "home_team_total") return { last5: homeFor("last5"), last10: homeFor("last10"), h2h: h2hValue };
+  if (market === "away_team_total") return { last5: awayFor("last5"), last10: awayFor("last10"), h2h: h2hValue };
+  if (market === "spread") return { last5: spreadFor("last5"), last10: spreadFor("last10"), h2h: h2hValue };
+  return {};
+}
+
+function h2hProjection(market: string, side: string, games: ApiObject[]): number | null {
+  if (!games.length) return null;
+  const values = games.map((game) => {
+    if (market === "total") return asNumber(game.total);
+    if (market === "home_team_total") return asNumber(game.home_points ?? game.points);
+    if (market === "away_team_total") return asNumber(game.away_points ?? game.opp_points);
+    if (market === "spread") {
+      const home = asNumber(game.home_points ?? game.points);
+      const away = asNumber(game.away_points ?? game.opp_points);
+      return home == null || away == null ? null : (side === "away" ? away - home : home - away);
+    }
+    return null;
+  }).filter((value): value is number => value != null);
+  return average(values);
+}
+
+function mainHitRates(market: string, side: string, pick: unknown, line: number | null, homeRecent: ApiObject[], awayRecent: ApiObject[], h2hGames: ApiObject[]): ApiObject {
+  if (line == null) return {};
+  const splitGames = side === "away" ? awayRecent : homeRecent;
+  const metric = (game: ApiObject) => {
+    if (market === "total") return asNumber(game.total);
+    if (market === "home_team_total" || market === "away_team_total") return asNumber(game.points);
+    if (market === "spread") return asNumber(game.margin);
+    return null;
+  };
+  const h2hMetric = (game: ApiObject) => {
+    if (market === "total") return asNumber(game.total);
+    if (market === "home_team_total") return asNumber(game.home_points ?? game.points);
+    if (market === "away_team_total") return asNumber(game.away_points ?? game.opp_points);
+    if (market === "spread") {
+      const home = asNumber(game.home_points ?? game.points);
+      const away = asNumber(game.away_points ?? game.opp_points);
+      return home == null || away == null ? null : (side === "away" ? away - home : home - away);
+    }
+    return null;
+  };
+  return {
+    last5: hitRate(splitGames.slice(0, 5).map(metric), line, pick, market),
+    last10: hitRate(splitGames.slice(0, 10).map(metric), line, pick, market),
+    h2h: hitRate(h2hGames.map(h2hMetric), line, pick, market),
+  };
+}
+
+function periodProfileValues(period: string, analytics: MatchAnalyticsResponse): ApiObject {
+  const factor = period.toLowerCase().startsWith("q1") ? 0.25 : period.toLowerCase().startsWith("h1") ? 0.5 : 1;
+  const scale = (value: number | null) => value == null ? null : round1(value * factor);
+  const total = mainProfileValues("total", "total", analytics);
+  const home = mainProfileValues("home_team_total", "home", analytics);
+  const away = mainProfileValues("away_team_total", "away", analytics);
+  const spread = mainProfileValues("spread", "home", analytics);
+  const scaleProfile = (source: ApiObject) => ({
+    last5: scale(asNumber(source.last5)),
+    last10: scale(asNumber(source.last10)),
+    h2h: scale(asNumber(source.h2h)),
+  });
+  return {
+    total: scaleProfile(total),
+    home: scaleProfile(home),
+    away: scaleProfile(away),
+    spread: scaleProfile(spread),
+  };
+}
+
 function periodMarketRows(analytics: MatchAnalyticsResponse, prematch: PrematchResponse, frozen: FrozenPrematchResponse): ApiObject[] {
   const periodMarkets = asObject(analytics.markets?.periods);
   if (!Object.keys(periodMarkets).length) {
@@ -1051,6 +1195,7 @@ function periodMarketRows(analytics: MatchAnalyticsResponse, prematch: PrematchR
     const spread = asObject(block.spread);
     const total = asObject(block.total);
     const teamTotals = asObject(block.team_totals);
+    const periodProfiles = periodProfileValues(period, analytics);
     return [
       {
         key: `${period}_winner`,
@@ -1072,7 +1217,7 @@ function periodMarketRows(analytics: MatchAnalyticsResponse, prematch: PrematchR
         pick: spread.pick,
         status: spread.status || "line_only",
         model_projections: { consensus: asNumber(spread.projection) },
-        profile_projections: {},
+        profile_projections: asObject(periodProfiles.spread),
         hit_rates: {},
       },
       {
@@ -1081,7 +1226,7 @@ function periodMarketRows(analytics: MatchAnalyticsResponse, prematch: PrematchR
         side: "total",
         ...total,
         model_projections: { consensus: asNumber(total.projection) },
-        profile_projections: {},
+        profile_projections: asObject(periodProfiles.total),
         hit_rates: {},
       },
       {
@@ -1090,7 +1235,7 @@ function periodMarketRows(analytics: MatchAnalyticsResponse, prematch: PrematchR
         side: "home",
         ...asObject(teamTotals.home),
         model_projections: { consensus: asNumber(asObject(teamTotals.home).projection) },
-        profile_projections: {},
+        profile_projections: asObject(periodProfiles.home),
         hit_rates: {},
       },
       {
@@ -1099,7 +1244,7 @@ function periodMarketRows(analytics: MatchAnalyticsResponse, prematch: PrematchR
         side: "away",
         ...asObject(teamTotals.away),
         model_projections: { consensus: asNumber(asObject(teamTotals.away).projection) },
-        profile_projections: {},
+        profile_projections: asObject(periodProfiles.away),
         hit_rates: {},
       },
     ].map(asObject);
@@ -1163,6 +1308,63 @@ function edgeStack(profiles: ApiObject, consensus: number | null, line: number |
   return `L5 ${formatNum(l5, 1)} / L10 ${formatNum(l10, 1)} / Cons ${formatNum(cons, 1)}`;
 }
 
+function profileEdgeStack(profiles: ApiObject, line: number | null, row: ApiObject): string {
+  const l5 = projectionEdge(asNumber(profiles.last5), line, row);
+  const l10 = projectionEdge(asNumber(profiles.last10), line, row);
+  const h2h = projectionEdge(asNumber(profiles.h2h), line, row);
+  return `L5 ${formatNum(l5, 1)} / L10 ${formatNum(l10, 1)} / H2H ${formatNum(h2h, 1)}`;
+}
+
+function resultBadge(result: string): ReactNode {
+  if (result === "-") return "-";
+  return <span className={`statusChip ${result === "WIN" ? "statusPlay" : result === "LOSS" ? "statusMissing" : "statusNeutral"}`}>{result}</span>;
+}
+
+function marketResult(row: ApiObject, match: MatchDetailResponse): string {
+  if (!isAfterTipoffStatus(match.status)) return "-";
+  const pick = String(row.pick || "").toUpperCase();
+  const market = String(row.market || "").toLowerCase();
+  const key = String(row.key || "").toLowerCase();
+  const line = asNumber(row.line);
+  const actual = marketActualValue(row, match);
+  if (actual == null || line == null || !pick || pick === "-") return "-";
+  if (market.includes("spread") || key.includes("spread")) {
+    const edge = actual + line;
+    const covered = edge > 0 ? "HOME_COVER" : edge < 0 ? "AWAY_COVER" : "PUSH";
+    return covered === "PUSH" ? "PUSH" : pick.includes(covered) ? "WIN" : "LOSS";
+  }
+  if (actual === line) return "PUSH";
+  if (pick.includes("OVER")) return actual > line ? "WIN" : "LOSS";
+  if (pick.includes("UNDER")) return actual < line ? "WIN" : "LOSS";
+  return "-";
+}
+
+function marketActualValue(row: ApiObject, match: MatchDetailResponse): number | null {
+  const key = String(row.key || "").toLowerCase();
+  const market = String(row.market || "").toLowerCase();
+  const score = match.score || { home: match.home_score, away: match.away_score };
+  const home = asNumber(score.home);
+  const away = asNumber(score.away);
+  if (home == null || away == null) return null;
+  const period = key.startsWith("h1_") || market.startsWith("h1") ? periodScore(match, 2) : key.startsWith("q1_") || market.startsWith("q1") ? periodScore(match, 1) : null;
+  const actualHome = period?.home ?? home;
+  const actualAway = period?.away ?? away;
+  if (market.includes("winner")) return null;
+  if (market.includes("total") && !market.includes("team") && !market.includes("home") && !market.includes("away")) return actualHome + actualAway;
+  if (market.includes("home total") || market.includes("home_team_total") || key.includes("it_home")) return actualHome;
+  if (market.includes("away total") || market.includes("away_team_total") || key.includes("it_away")) return actualAway;
+  if (market.includes("spread") || key.includes("spread")) return actualHome - actualAway;
+  return asNumber(row.actual_value);
+}
+
+function periodScore(match: MatchDetailResponse, periods: number): { home: number; away: number } | null {
+  const rows = Array.isArray(match.quarter_scores) ? match.quarter_scores.slice(0, periods) : [];
+  if (!rows.length) return null;
+  const home = rows.reduce((sum, row) => sum + (asNumber(row.home) ?? 0), 0);
+  const away = rows.reduce((sum, row) => sum + (asNumber(row.away) ?? 0), 0);
+  return { home, away };
+}
+
 function statusClass(value: unknown): string {
   const text = String(value || "").toLowerCase();
   if (text.includes("play")) return "statusPlay";
@@ -1181,6 +1383,32 @@ function riskCell(row: ApiObject): ReactNode {
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function sumNullable(a: number | null, b: number | null): number | null {
+  return a == null || b == null ? null : round1(a + b);
+}
+
+function average(values: number[]): number | null {
+  return values.length ? round1(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+}
+
+function hitRate(values: Array<number | null>, line: number, pick: unknown, market: string): ApiObject | null {
+  const usable = values.filter((value): value is number => value != null);
+  if (!usable.length) return null;
+  const pickText = String(pick || "").toUpperCase();
+  const wins = usable.filter((value) => {
+    if (market === "spread") {
+      const cover = value + line;
+      if (pickText.includes("HOME_COVER")) return cover > 0;
+      if (pickText.includes("AWAY_COVER")) return cover < 0;
+      return false;
+    }
+    if (pickText.includes("OVER")) return value > line;
+    if (pickText.includes("UNDER")) return value < line;
+    return false;
+  }).length;
+  return { sample: usable.length, pick_hit_rate: wins / usable.length, average: average(usable) };
 }
 
 function formatProjectionList(source: ApiObject, keys: string[]): string {
