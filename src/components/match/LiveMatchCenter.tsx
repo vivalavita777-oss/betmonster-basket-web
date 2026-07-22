@@ -128,7 +128,7 @@ export function LiveMatchCenter() {
           <div className="liveScoreTile">
             <span>{live.clock?.period || live.status || initialStatus || "-"}</span>
             <strong>{live.score?.home ?? "-"} : {live.score?.away ?? "-"}</strong>
-            <small>{live.clock?.timer || "Clock unavailable"}</small>
+            <small>{live.clock?.timer ? `Played ${live.clock.timer}` : "Clock unavailable"}</small>
           </div>
           <Metric label="Projected total" value={formatNum(asNumber(live.live_projection?.total), 1)} />
           <Metric label="Home live total" value={formatNum(asNumber(live.live_projection?.home_total), 1)} />
@@ -162,6 +162,31 @@ export function MatchHeroScore({ match }: { match: MatchDetailResponse }) {
       <div><span>{match.away_team || "Away"}</span><strong>{score?.away ?? "-"}</strong></div>
       <StatusPill label={label} tone={useLiveScore ? "red" : "neutral"} />
     </>
+  );
+}
+
+export function LiveHeroScore({ match }: { match: MatchDetailResponse }) {
+  const { live, status } = useLiveMatchState();
+  const initialScore = match.score || { home: match.home_score, away: match.away_score };
+  const liveActive = Boolean(live.available && isLiveStatus(status) && live.score);
+  const score = liveActive ? live.score : initialScore;
+  const periods = liveActive && live.quarter_scores?.length ? live.quarter_scores : match.quarter_scores;
+  const periodText = (periods || [])
+    .map((row) => `${row.home ?? "-"}-${row.away ?? "-"}`)
+    .join(" · ");
+  const label = isFinishedStatus(status) ? "FINISHED" : liveActive ? "LIVE" : (status || "scheduled").toUpperCase();
+  const timer = liveActive ? live.clock?.timer : null;
+  const period = liveActive ? live.clock?.period : null;
+
+  return (
+    <div className="scoreWrap" aria-live="polite">
+      <div className="scoreLineHero">
+        <strong>{score?.home ?? "-"} : {score?.away ?? "-"}</strong>
+        {periodText ? <span>({periodText})</span> : null}
+        {liveActive && (period || timer) ? <span className="liveClockHero">{period || "LIVE"}{timer ? ` · Played ${timer}` : ""}</span> : null}
+        <span className={`matchStatusChip status-${label.toLowerCase()}`}>{label}</span>
+      </div>
+    </div>
   );
 }
 

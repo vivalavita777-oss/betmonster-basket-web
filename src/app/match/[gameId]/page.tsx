@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ApiUnavailable } from "@/components/ApiUnavailable";
-import { LiveMatchCenter, LiveMatchProvider, LiveResultComparison, SignalSummaryRail } from "@/components/match/LiveMatchCenter";
+import { LiveHeroScore, LiveMatchCenter, LiveMatchProvider, LiveResultComparison, SignalSummaryRail } from "@/components/match/LiveMatchCenter";
 import { MatchJsonDownload } from "@/components/match/MatchJsonDownload";
 import { RecommendationTable } from "@/components/RecommendationTable";
 import { StatusPill } from "@/components/StatusPill";
@@ -309,11 +309,6 @@ function MatchHero({ match, markets }: { match: MatchDetailResponse; markets: Ap
   const winner = asObject(asObject(markets).winner);
   const homeOdds = asNumber(winner.home_odds);
   const awayOdds = asNumber(winner.away_odds);
-  const status = String(match.status || "scheduled").toUpperCase();
-  const finished = isAfterTipoffStatus(match.status) && ["FINISHED", "FINAL", "CLOSED"].includes(status);
-  const score = match.score || { home: match.home_score, away: match.away_score };
-  const periodText = formatQuarterScores(match.quarter_scores);
-  const hasOt = (match.quarter_scores || []).length > 4;
   return (
     <header className="matchHero">
       <div>
@@ -329,13 +324,7 @@ function MatchHero({ match, markets }: { match: MatchDetailResponse; markets: Ap
           <span className="teamOdd">{formatNum(awayOdds, 2)}</span>
         </h1>
       </div>
-      <div className="scoreWrap">
-        <div className="scoreLineHero">
-          <strong>{score?.home ?? "-"} : {score?.away ?? "-"}{hasOt ? " OT" : ""}</strong>
-          {periodText ? <span>({periodText})</span> : null}
-          <span className={`matchStatusChip status-${status.toLowerCase()}`}>{finished ? "FINISHED" : status}</span>
-        </div>
-      </div>
+      <LiveHeroScore match={match} />
     </header>
   );
 }

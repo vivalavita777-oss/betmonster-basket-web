@@ -117,7 +117,8 @@ export type LiveResponse = {
   available?: boolean;
   status?: string | null;
   score?: ScoreBlock | null;
-  clock?: { period?: string | null; timer?: string | null; clock_seconds?: number | null } | null;
+  clock?: { period?: string | null; timer?: string | null; clock_seconds?: number | null; elapsed_seconds?: number | null } | null;
+  quarter_scores?: Array<{ period?: string | null; home?: number | null; away?: number | null }>;
   live_market?: ApiObject | null;
   live_projection?: ApiObject | null;
   live_shot_markets?: {
