@@ -146,6 +146,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
             <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-recommendations" />
             <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-result" />
             <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-meta" />
+            {liveVisible ? <input className="matchTabInput" type="radio" name="match-tabs" id="match-tab-live" /> : null}
             <nav className="matchTabNav stickyTabs" aria-label="Match sections">
               <label htmlFor="match-tab-lines">Line Markets</label>
               <label htmlFor="match-tab-form">Team Form</label>
@@ -154,6 +155,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
               <label htmlFor="match-tab-recommendations">Recommendations</label>
               <label htmlFor="match-tab-result">Result</label>
               <label htmlFor="match-tab-meta">Meta</label>
+              {liveVisible ? <label htmlFor="match-tab-live">Live</label> : null}
               <span className="tabSpacer" />
               <MatchJsonDownload payload={jsonPayload} compactPayload={compactJsonPayload} />
             </nav>
@@ -168,7 +170,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
                 <PlayersSection analytics={displayAnalytics} prematch={prematch} showProps={false} />
               </div>
               <div className="matchTabPanel tabPanelSignals">
-                {liveVisible ? <LiveMatchCenter /> : <StaticSignalsSection signals={initialSignals} />}
+                <StaticSignalsSection signals={initialSignals} />
               </div>
               <div className="matchTabPanel tabPanelRecommendations">
                 <TopRecommendationsSection analytics={displayAnalytics} recs={recs} />
@@ -199,6 +201,7 @@ export default async function MatchPage({ params }: { params: Promise<{ gameId: 
                   postgame={postgame}
                 />
               </div>
+              {liveVisible ? <div className="matchTabPanel tabPanelLive"><LiveMatchCenter /></div> : null}
             </div>
           </div>
         </div>
